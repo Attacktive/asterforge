@@ -42,7 +42,6 @@ namespace Asterforge.Unity.Presentation
 		private static readonly Color amberColor = new Color(0.96f, 0.57f, 0.17f);
 		private static readonly Color cyanColor = new Color(0.28f, 0.77f, 0.86f);
 		private static readonly Color greenColor = new Color(0.39f, 0.81f, 0.53f);
-		private static readonly Color steelColor = new Color(0.65f, 0.74f, 0.80f);
 
 		private OutpostWorld world;
 		private Vector2 scrollPosition;
@@ -131,7 +130,7 @@ namespace Asterforge.Unity.Presentation
 
 		private void DrawBackground()
 		{
-			GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), skyTexture, ScaleMode.StretchToFill);
+			GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), skyTexture);
 
 			var previousColor = GUI.color;
 			for (var index = 0; index < 58; index++)
@@ -180,21 +179,20 @@ namespace Asterforge.Unity.Presentation
 		private void DrawOutpostVista(Rect rect)
 		{
 			GUI.BeginGroup(rect);
-			var localRect = new Rect(0f, 0f, rect.width, rect.height);
-			DrawRect(localRect, new Color(0.025f, 0.04f, 0.055f, 0.62f));
-			DrawRect(new Rect(0f, localRect.height - 2f, localRect.width, 2f), new Color(0.30f, 0.40f, 0.44f, 0.35f));
+			DrawRect(new Rect(0f, 0f, rect.width, rect.height), new Color(0.025f, 0.04f, 0.055f, 0.62f));
+			DrawRect(new Rect(0f, rect.height - 2f, rect.width, 2f), new Color(0.30f, 0.40f, 0.44f, 0.35f));
 
-			var planetSize = Mathf.Clamp(localRect.height * 0.55f, 100f, 210f);
+			var planetSize = Mathf.Clamp(rect.height * 0.55f, 100f, 210f);
 			var previousColor = GUI.color;
 			GUI.color = new Color(0.22f, 0.34f, 0.38f, 0.28f);
-			GUI.DrawTexture(new Rect(localRect.width - planetSize * 0.78f, -planetSize * 0.22f, planetSize, planetSize), circleTexture, ScaleMode.StretchToFill, true);
+			GUI.DrawTexture(new Rect(rect.width - planetSize * 0.78f, -planetSize * 0.22f, planetSize, planetSize), circleTexture);
 			GUI.color = previousColor;
 
-			var floor = localRect.height * 0.76f;
-			DrawDistantSilhouette(localRect.width, floor);
-			DrawFactory(localRect.width, floor);
-			DrawConveyor(localRect.width, floor + 20f);
-			DrawVistaStatus(localRect.width, localRect.height);
+			var floor = rect.height * 0.76f;
+			DrawDistantSilhouette(rect.width, floor);
+			DrawFactory(rect.width, floor);
+			DrawConveyor(rect.width, floor + 20f);
+			DrawVistaStatus(rect.width, rect.height);
 			GUI.EndGroup();
 		}
 
@@ -215,14 +213,14 @@ namespace Asterforge.Unity.Presentation
 
 		private void DrawFactory(float width, float floor)
 		{
-			var machines = 4;
+			var machineSlots = 4;
 			if (world.IsIndustrialized)
 			{
-				machines = 6;
+				machineSlots = 6;
 			}
 
-			var spacing = width / (machines + 1f);
-			for (var index = 0; index < machines; index++)
+			var spacing = width / (machineSlots + 1f);
+			for (var index = 0; index < machineSlots; index++)
 			{
 				MachineType machine;
 				if (index < outpostMachines.Length)
@@ -234,8 +232,7 @@ namespace Asterforge.Unity.Presentation
 					machine = industryMachines[index - outpostMachines.Length];
 				}
 
-				var x = spacing * (index + 1f);
-				DrawMachineSilhouette(machine, x, floor);
+				DrawMachineSilhouette(machine, spacing * (index + 1f), floor);
 			}
 		}
 
@@ -283,7 +280,7 @@ namespace Asterforge.Unity.Presentation
 				var pulseColor = new Color(cyanColor.r, cyanColor.g, cyanColor.b, pulseAlpha);
 				var previousColor = GUI.color;
 				GUI.color = pulseColor;
-				GUI.DrawTexture(new Rect(centerX - 8f, body.y - 36f, 16f, 16f), circleTexture, ScaleMode.StretchToFill, true);
+				GUI.DrawTexture(new Rect(centerX - 8f, body.y - 36f, 16f, 16f), circleTexture);
 				GUI.color = previousColor;
 			}
 			else if (machine == MachineType.CoalMine)
@@ -318,8 +315,8 @@ namespace Asterforge.Unity.Presentation
 			{
 				var travel = Mathf.Repeat(Time.unscaledTime * (0.11f + index * 0.025f) + index * 0.31f, 1f);
 				var size = 9f + travel * 17f;
-				GUI.color = new Color(0.45f, 0.50f, 0.51f, (1f - travel) * 0.18f);
-				GUI.DrawTexture(new Rect(x - size * 0.5f + Mathf.Sin(travel * 8f + index) * 6f, y - travel * 54f, size, size), circleTexture, ScaleMode.StretchToFill, true);
+				GUI.color = new Color(0.35f, 0.38f, 0.39f, 0.22f * (1f - travel));
+				GUI.DrawTexture(new Rect(x - size * 0.5f + index * 4f, y - travel * 58f, size, size), circleTexture);
 			}
 
 			GUI.color = previousColor;
@@ -327,66 +324,56 @@ namespace Asterforge.Unity.Presentation
 
 		private void DrawConveyor(float width, float y)
 		{
-			DrawRect(new Rect(22f, y, width - 44f, 3f), new Color(0.23f, 0.29f, 0.30f, 0.85f));
-			var totalMachines = 0;
-			foreach (var machine in outpostMachines)
-			{
-				totalMachines += world.Machines.Get(machine);
-			}
-
-			foreach (var machine in industryMachines)
-			{
-				totalMachines += world.Machines.Get(machine);
-			}
-
-			if (totalMachines == 0)
+			DrawRect(new Rect(12f, y, width - 24f, 3f), new Color(0.22f, 0.28f, 0.29f, 0.75f));
+			if (GetTotalMachineCount() == 0)
 			{
 				return;
 			}
 
-			var speed = 42f + Mathf.Min(totalMachines, 30) * 2.4f;
-			for (var index = 0; index < 10; index++)
+			var previousColor = GUI.color;
+			for (var index = 0; index < 9; index++)
 			{
-				var x = Mathf.Repeat(Time.unscaledTime * speed + index * 73f, width - 54f) + 27f;
-				DrawRect(new Rect(x, y - 2f, 14f, 7f), new Color(amberColor.r, amberColor.g, amberColor.b, 0.72f));
+				var travel = Mathf.Repeat(Time.unscaledTime * 0.08f + index / 9f, 1f);
+				var x = 14f + travel * (width - 36f);
+				GUI.color = new Color(0.93f, 0.55f, 0.18f, 0.72f);
+				GUI.DrawTexture(new Rect(x, y - 3f, 7f, 7f), Texture2D.whiteTexture);
 			}
+
+			GUI.color = previousColor;
 		}
 
 		private void DrawVistaStatus(float width, float height)
 		{
-			GUI.Label(new Rect(16f, 13f, width - 32f, 20f), "SURFACE INDUSTRIAL NODE // AUTOMATION TELEMETRY", eyebrowStyle);
-
-			var machineCount = 0;
-			foreach (var machine in outpostMachines)
-			{
-				machineCount += world.Machines.Get(machine);
-			}
-
-			foreach (var machine in industryMachines)
-			{
-				machineCount += world.Machines.Get(machine);
-			}
-
 			var phase = "OUTPOST";
 			if (world.IsIndustrialized)
 			{
 				phase = "INDUSTRY";
 			}
 
-			GUI.Label(new Rect(16f, height - 38f, width - 32f, 20f), $"{phase} PHASE   //   {machineCount} MACHINES ONLINE", vistaLabelStyle);
+			GUI.Label(new Rect(16f, height - 38f, width - 32f, 20f), $"{phase} PHASE   //   {GetTotalMachineCount()} MACHINES ONLINE", vistaLabelStyle);
+		}
+
+		private int GetTotalMachineCount()
+		{
+			var count = 0;
+			foreach (var machine in outpostMachines)
+			{
+				count += world.Machines.Get(machine);
+			}
+
+			foreach (var machine in industryMachines)
+			{
+				count += world.Machines.Get(machine);
+			}
+
+			return count;
 		}
 
 		private void DrawControlDeck(Rect rect)
 		{
-			GUI.Box(rect, GUIContent.none, panelStyle);
-			var inner = new Rect(rect.x + 14f, rect.y + 13f, rect.width - 28f, rect.height - 26f);
-			GUILayout.BeginArea(inner);
-			scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, true);
-
-			GUILayout.Label("CONTROL DECK", eyebrowStyle);
-			GUILayout.Label("Outpost Operations", headingStyle);
-			GUILayout.Space(8f);
-
+			GUILayout.BeginArea(rect, panelStyle);
+			scrollPosition = GUILayout.BeginScrollView(scrollPosition);
+			GUILayout.Label("RESOURCE TELEMETRY", eyebrowStyle);
 			DrawResources(baseResources);
 			if (world.IsIndustrialized)
 			{
@@ -395,36 +382,37 @@ namespace Asterforge.Unity.Presentation
 			}
 
 			GUILayout.Space(12f);
-			if (GUILayout.Button("MINE ORE   +1", buttonStyle, GUILayout.Height(44f)))
+			GUILayout.Label("MANUAL EXTRACTION", eyebrowStyle);
+			if (GUILayout.Button("MINE ORE  +1", buttonStyle, GUILayout.Height(40f)))
 			{
 				world.MineOre();
-				status = "Manual extraction pulse complete. Ore added to local storage.";
+				status = "Manual extraction logged. Ore reserve increased by one unit.";
 			}
 
-			GUILayout.Space(18f);
-			GUILayout.Label("PRODUCTION ARRAY", eyebrowStyle);
+			GUILayout.Space(14f);
+			GUILayout.Label("PRODUCTION ARRAY", headingStyle);
 			foreach (var machine in outpostMachines)
 			{
 				DrawMachine(machine);
+				GUILayout.Space(6f);
 			}
 
-			GUILayout.Space(16f);
+			GUILayout.Space(8f);
 			DrawIndustrialization();
 
 			if (world.IsIndustrialized)
 			{
-				GUILayout.Space(16f);
-				GUILayout.Label("HEAVY INDUSTRY", eyebrowStyle);
+				GUILayout.Space(14f);
+				GUILayout.Label("HEAVY INDUSTRY", headingStyle);
 				foreach (var machine in industryMachines)
 				{
 					DrawMachine(machine);
+					GUILayout.Space(6f);
 				}
 
-				GUILayout.Space(10f);
-				DrawSteelGoal();
+				DrawSteelProgress();
 			}
 
-			GUILayout.Space(20f);
 			GUILayout.EndScrollView();
 			GUILayout.EndArea();
 		}
@@ -434,12 +422,12 @@ namespace Asterforge.Unity.Presentation
 			GUILayout.BeginHorizontal();
 			foreach (var resource in resources)
 			{
-				GUILayout.BeginVertical(resourceCardStyle, GUILayout.MinWidth(92f), GUILayout.Height(66f));
+				GUILayout.BeginVertical(resourceCardStyle, GUILayout.MinWidth(90f));
 				GUILayout.Label(resource.ToString().ToUpperInvariant(), eyebrowStyle);
-				var previousColor = GUI.contentColor;
-				GUI.contentColor = GetResourceColor(resource);
-				GUILayout.Label(FormatAmount(world.Resources.Get(resource)), machineTitleStyle);
-				GUI.contentColor = previousColor;
+
+				var valueStyle = new GUIStyle(machineTitleStyle);
+				valueStyle.normal.textColor = GetResourceAccent(resource);
+				GUILayout.Label(FormatAmount(world.Resources.Get(resource)), valueStyle);
 				GUILayout.EndVertical();
 			}
 
@@ -452,33 +440,38 @@ namespace Asterforge.Unity.Presentation
 			var costs = world.GetMachineCost(machine);
 			var affordable = CanAfford(costs);
 			var owned = world.Machines.Get(machine);
+			var active = owned > 0;
 
 			GUILayout.BeginVertical(machineCardStyle);
 			GUILayout.BeginHorizontal();
 			GUILayout.Label($"{GetMachineName(machine)}  x{owned}", machineTitleStyle);
 			GUILayout.FlexibleSpace();
 
-			var previousColor = GUI.contentColor;
-			GUI.contentColor = GetMachineAccent(machine);
 			var state = "STANDBY";
-			if (owned > 0)
+			var stateColor = mutedColor;
+			if (!unlocked)
+			{
+				state = "LOCKED";
+			}
+			else if (active)
 			{
 				state = "ONLINE";
+				stateColor = greenColor;
 			}
 
-			GUILayout.Label(state, eyebrowStyle, GUILayout.Width(68f));
-			GUI.contentColor = previousColor;
+			var stateStyle = new GUIStyle(eyebrowStyle);
+			stateStyle.normal.textColor = stateColor;
+			GUILayout.Label(state, stateStyle, GUILayout.Width(62f));
 			GUILayout.EndHorizontal();
 			GUILayout.Label(GetMachineFlow(machine), bodyStyle);
-			GUILayout.Label($"NEXT BUILD  //  {FormatCosts(costs)}", mutedStyle);
-			GUILayout.Space(4f);
+			GUILayout.Label($"NEXT UNIT  //  {FormatCosts(costs)}", mutedStyle);
 
 			var previousEnabled = GUI.enabled;
 			GUI.enabled = unlocked && affordable;
-			var buttonText = "BUILD UNIT";
+			var buttonText = "COMMISSION UNIT";
 			if (!unlocked)
 			{
-				buttonText = "LOCKED";
+				buttonText = "PRODUCTION STAGE LOCKED";
 			}
 			else if (!affordable)
 			{
@@ -502,7 +495,6 @@ namespace Asterforge.Unity.Presentation
 
 			GUI.enabled = previousEnabled;
 			GUILayout.EndVertical();
-			GUILayout.Space(7f);
 		}
 
 		private void DrawIndustrialization()
@@ -511,25 +503,19 @@ namespace Asterforge.Unity.Presentation
 			GUILayout.Label("INDUSTRIALIZATION", machineTitleStyle);
 			if (world.IsIndustrialized)
 			{
-				var previousColor = GUI.contentColor;
-				GUI.contentColor = greenColor;
-				GUILayout.Label("BREAKTHROUGH COMPLETE", eyebrowStyle);
-				GUI.contentColor = previousColor;
-				GUILayout.Label("Coal extraction and steel production are now authorized.", bodyStyle);
+				GUILayout.Label("BREAKTHROUGH COMPLETE  //  COAL + STEEL ONLINE", bodyStyle);
+				DrawProgressBar(1f, greenColor);
 				GUILayout.EndVertical();
 
 				return;
 			}
 
-			var cost = world.IndustrializationCost[0];
-			var current = world.Resources.Get(cost.Resource);
-			var progress = Mathf.Clamp01(current / (float)cost.Amount);
-			GUILayout.Label("Convert the mature Outpost production chain into the knowledge required for heavy industry.", bodyStyle);
-			GUILayout.Space(5f);
-			GUILayout.Label($"RESEARCH  //  {FormatAmount(current)} / {FormatAmount(cost.Amount)}", mutedStyle);
-			var progressRect = GUILayoutUtility.GetRect(10f, 15f, GUILayout.ExpandWidth(true));
-			DrawProgress(progressRect, progress, cyanColor);
-			GUILayout.Space(7f);
+			var research = world.Resources.Get(ResourceType.Research);
+			var required = world.IndustrializationCost[0].Amount;
+			var progress = Mathf.Clamp01(research / (float)required);
+			GUILayout.Label($"RESEARCH PROGRESS  //  {FormatAmount(research)} / {FormatAmount(required)}", bodyStyle);
+			DrawProgressBar(progress, cyanColor);
+			GUILayout.Label("Transform the outpost into a heavy-industry colony. Existing production can keep running while Research accumulates.", mutedStyle);
 
 			var previousEnabled = GUI.enabled;
 			GUI.enabled = CanAfford(world.IndustrializationCost);
@@ -552,25 +538,30 @@ namespace Asterforge.Unity.Presentation
 			GUILayout.EndVertical();
 		}
 
-		private void DrawSteelGoal()
+		private void DrawSteelProgress()
 		{
 			GUILayout.BeginVertical(machineCardStyle);
-			GUILayout.Label("VERTICAL SLICE OBJECTIVE", eyebrowStyle);
-			GUILayout.Label("Sustain Steel Production", machineTitleStyle);
-			var capacity = world.Machines.Get(MachineType.Steelworks);
-			var progress = Mathf.Clamp01(capacity);
-			GUILayout.Label($"STEELWORKS CAPACITY  //  {capacity} STEEL/s", mutedStyle);
-			var progressRect = GUILayoutUtility.GetRect(10f, 15f, GUILayout.ExpandWidth(true));
-			DrawProgress(progressRect, progress, steelColor);
+			GUILayout.Label("VERTICAL-SLICE OBJECTIVE", eyebrowStyle);
+			var steelworks = world.Machines.Get(MachineType.Steelworks);
+			var progress = Mathf.Clamp01(steelworks);
+			GUILayout.Label("Sustain at least 1 Steel/s", machineTitleStyle);
+			DrawProgressBar(progress, greenColor);
+
+			var message = "Commission a Steelworks to establish steel production.";
+			if (steelworks > 0)
+			{
+				message = "Steel capacity established. Keep Metal and Coal supplied to sustain output.";
+			}
+
+			GUILayout.Label(message, mutedStyle);
 			GUILayout.EndVertical();
 		}
 
-		private void DrawProgress(Rect rect, float progress, Color color)
+		private void DrawProgressBar(float progress, Color fillColor)
 		{
-			DrawRect(rect, new Color(0.07f, 0.09f, 0.10f, 0.95f));
-			var fill = new Rect(rect.x + 2f, rect.y + 2f, Mathf.Max(0f, (rect.width - 4f) * progress), rect.height - 4f);
-			DrawRect(fill, new Color(color.r, color.g, color.b, 0.86f));
-			DrawRect(new Rect(rect.x, rect.y, rect.width, 1f), new Color(color.r, color.g, color.b, 0.34f));
+			var rect = GUILayoutUtility.GetRect(10f, 10f, GUILayout.ExpandWidth(true));
+			DrawRect(rect, new Color(0.10f, 0.12f, 0.13f, 1f));
+			DrawRect(new Rect(rect.x, rect.y, rect.width * Mathf.Clamp01(progress), rect.height), fillColor);
 		}
 
 		private bool CanAfford(IReadOnlyList<ResourceCost> costs)
@@ -661,12 +652,12 @@ namespace Asterforge.Unity.Presentation
 		{
 			var flow = machine switch
 			{
-				MachineType.Extractor => "+1 Ore / s",
-				MachineType.Smelter => "2 Ore  >  1 Metal / s",
-				MachineType.Assembler => "3 Metal  >  1 Component / s",
-				MachineType.ResearchStation => "2 Components  >  1 Research / s",
-				MachineType.CoalMine => "+1 Coal / s",
-				MachineType.Steelworks => "4 Metal + 2 Coal  >  1 Steel / s",
+				MachineType.Extractor => "+1 Ore/s",
+				MachineType.Smelter => "2 Ore -> 1 Metal/s",
+				MachineType.Assembler => "3 Metal -> 1 Component/s",
+				MachineType.ResearchStation => "2 Components -> 1 Research/s",
+				MachineType.CoalMine => "+1 Coal/s",
+				MachineType.Steelworks => "4 Metal + 2 Coal -> 1 Steel/s",
 				_ => string.Empty
 			};
 
@@ -677,25 +668,25 @@ namespace Asterforge.Unity.Presentation
 		{
 			var color = machine switch
 			{
-				MachineType.Extractor => new Color(0.72f, 0.58f, 0.34f),
-				MachineType.Smelter => amberColor,
-				MachineType.Assembler => new Color(0.66f, 0.72f, 0.76f),
+				MachineType.Extractor => new Color(0.88f, 0.56f, 0.24f),
+				MachineType.Smelter => new Color(0.95f, 0.35f, 0.13f),
+				MachineType.Assembler => new Color(0.83f, 0.68f, 0.27f),
 				MachineType.ResearchStation => cyanColor,
-				MachineType.CoalMine => new Color(0.42f, 0.47f, 0.48f),
-				MachineType.Steelworks => steelColor,
+				MachineType.CoalMine => new Color(0.56f, 0.59f, 0.60f),
+				MachineType.Steelworks => new Color(0.73f, 0.82f, 0.88f),
 				_ => textColor
 			};
 
 			return color;
 		}
 
-		private static Color GetResourceColor(ResourceType resource)
+		private static Color GetResourceAccent(ResourceType resource)
 		{
 			var color = resource switch
 			{
-				ResourceType.Ore => new Color(0.76f, 0.60f, 0.38f),
-				ResourceType.Metal => steelColor,
-				ResourceType.Components => new Color(0.91f, 0.72f, 0.30f),
+				ResourceType.Ore => new Color(0.88f, 0.56f, 0.24f),
+				ResourceType.Metal => new Color(0.78f, 0.82f, 0.83f),
+				ResourceType.Components => new Color(0.86f, 0.70f, 0.27f),
 				ResourceType.Research => cyanColor,
 				ResourceType.Coal => new Color(0.56f, 0.59f, 0.60f),
 				ResourceType.Steel => new Color(0.78f, 0.86f, 0.90f),
@@ -733,69 +724,69 @@ namespace Asterforge.Unity.Presentation
 
 			panelStyle = new GUIStyle(GUI.skin.box)
 			{
-				background = panelTexture,
 				border = new RectOffset(1, 1, 1, 1),
 				padding = new RectOffset(12, 12, 12, 12)
 			};
+			panelStyle.normal.background = panelTexture;
 
 			titleStyle = new GUIStyle(GUI.skin.label)
 			{
 				fontSize = 24,
-				fontStyle = FontStyle.Bold,
-				normal = { textColor = textColor }
+				fontStyle = FontStyle.Bold
 			};
+			titleStyle.normal.textColor = textColor;
 
 			eyebrowStyle = new GUIStyle(GUI.skin.label)
 			{
 				fontSize = 10,
 				fontStyle = FontStyle.Bold,
-				normal = { textColor = mutedColor },
 				wordWrap = true
 			};
+			eyebrowStyle.normal.textColor = mutedColor;
 
 			headingStyle = new GUIStyle(GUI.skin.label)
 			{
 				fontSize = 19,
 				fontStyle = FontStyle.Bold,
-				normal = { textColor = textColor },
 				wordWrap = true
 			};
+			headingStyle.normal.textColor = textColor;
 
 			machineTitleStyle = new GUIStyle(GUI.skin.label)
 			{
 				fontSize = 15,
 				fontStyle = FontStyle.Bold,
-				normal = { textColor = textColor },
 				wordWrap = true
 			};
+			machineTitleStyle.normal.textColor = textColor;
 
 			bodyStyle = new GUIStyle(GUI.skin.label)
 			{
 				fontSize = 12,
-				normal = { textColor = new Color(0.76f, 0.81f, 0.83f) },
 				wordWrap = true
 			};
+			bodyStyle.normal.textColor = new Color(0.76f, 0.81f, 0.83f);
 
 			mutedStyle = new GUIStyle(GUI.skin.label)
 			{
 				fontSize = 10,
-				normal = { textColor = mutedColor },
 				wordWrap = true
 			};
+			mutedStyle.normal.textColor = mutedColor;
 
 			resourceCardStyle = new GUIStyle(GUI.skin.box)
 			{
-				background = cardRaisedTexture,
 				padding = new RectOffset(9, 9, 8, 8),
 				margin = new RectOffset(0, 6, 0, 0)
 			};
+			resourceCardStyle.normal.background = cardRaisedTexture;
 
 			machineCardStyle = new GUIStyle(GUI.skin.box)
 			{
-				background = cardTexture,
 				padding = new RectOffset(11, 11, 9, 9),
 				margin = new RectOffset(0, 0, 0, 0)
 			};
+			machineCardStyle.normal.background = cardTexture;
 
 			buttonStyle = new GUIStyle(GUI.skin.button)
 			{
@@ -816,25 +807,29 @@ namespace Asterforge.Unity.Presentation
 			buttonDisabledStyle = new GUIStyle(buttonStyle);
 			buttonDisabledStyle.normal.background = buttonDisabledTexture;
 			buttonDisabledStyle.normal.textColor = new Color(0.43f, 0.48f, 0.49f);
-			buttonDisabledStyle.disabled.background = buttonDisabledTexture;
-			buttonDisabledStyle.disabled.textColor = new Color(0.43f, 0.48f, 0.49f);
+			buttonDisabledStyle.hover.background = buttonDisabledTexture;
+			buttonDisabledStyle.hover.textColor = new Color(0.43f, 0.48f, 0.49f);
+			buttonDisabledStyle.active.background = buttonDisabledTexture;
+			buttonDisabledStyle.active.textColor = new Color(0.43f, 0.48f, 0.49f);
+			buttonDisabledStyle.focused.background = buttonDisabledTexture;
+			buttonDisabledStyle.focused.textColor = new Color(0.43f, 0.48f, 0.49f);
 
 			badgeStyle = new GUIStyle(GUI.skin.label)
 			{
-				background = badgeTexture,
 				fontSize = 10,
 				fontStyle = FontStyle.Bold,
-				alignment = TextAnchor.MiddleCenter,
-				normal = { textColor = new Color(0.69f, 0.76f, 0.78f) }
+				alignment = TextAnchor.MiddleCenter
 			};
+			badgeStyle.normal.background = badgeTexture;
+			badgeStyle.normal.textColor = new Color(0.69f, 0.76f, 0.78f);
 
 			vistaLabelStyle = new GUIStyle(GUI.skin.label)
 			{
 				fontSize = 9,
 				fontStyle = FontStyle.Bold,
-				alignment = TextAnchor.MiddleCenter,
-				normal = { textColor = new Color(0.52f, 0.62f, 0.64f) }
+				alignment = TextAnchor.MiddleCenter
 			};
+			vistaLabelStyle.normal.textColor = new Color(0.52f, 0.62f, 0.64f);
 		}
 
 		private static Texture2D CreateTexture(Color color)
@@ -851,19 +846,14 @@ namespace Asterforge.Unity.Presentation
 
 		private static Texture2D CreateGradientTexture(Color top, Color bottom)
 		{
-			var texture = new Texture2D(2, 64, TextureFormat.RGBA32, false)
+			var texture = new Texture2D(1, 64, TextureFormat.RGBA32, false)
 			{
-				hideFlags = HideFlags.HideAndDontSave,
-				wrapMode = TextureWrapMode.Clamp,
-				filterMode = FilterMode.Bilinear
+				hideFlags = HideFlags.HideAndDontSave
 			};
-
-			for (var y = 0; y < texture.height; y++)
+			for (var y = 0; y < 64; y++)
 			{
-				var progress = y / (texture.height - 1f);
-				var color = Color.Lerp(bottom, top, progress);
-				texture.SetPixel(0, y, color);
-				texture.SetPixel(1, y, color);
+				var progress = y / 63f;
+				texture.SetPixel(0, y, Color.Lerp(bottom, top, progress));
 			}
 
 			texture.Apply(false, true);
@@ -875,18 +865,17 @@ namespace Asterforge.Unity.Presentation
 		{
 			var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
 			{
-				hideFlags = HideFlags.HideAndDontSave,
-				wrapMode = TextureWrapMode.Clamp,
-				filterMode = FilterMode.Bilinear
+				hideFlags = HideFlags.HideAndDontSave
 			};
-			var center = (size - 1f) * 0.5f;
+			var center = (size - 1) * 0.5f;
 			var radius = center;
 			for (var y = 0; y < size; y++)
 			{
 				for (var x = 0; x < size; x++)
 				{
-					var distance = Vector2.Distance(new Vector2(x, y), new Vector2(center, center));
-					var alpha = Mathf.Clamp01((radius - distance) / 2f);
+					var dx = x - center;
+					var dy = y - center;
+					var alpha = dx * dx + dy * dy <= radius * radius ? 1f : 0f;
 					texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
 				}
 			}
