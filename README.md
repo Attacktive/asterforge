@@ -11,7 +11,7 @@ The first-class desktop targets are:
 - Windows
 - macOS, built as a Universal application for Intel 64-bit and Apple silicon
 
-The project is pinned to Unity 6000.3.26f1 LTS and uses URP.
+The project is pinned to Unity 6000.6.5f1 and uses URP.
 
 ## First milestone
 

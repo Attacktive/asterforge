@@ -9,7 +9,7 @@
 
 ## Architecture
 
-- Target Unity 6000.3.26f1 LTS.
+- Target Unity 6000.6.5f1.
 - Target Windows and macOS as first-class desktop platforms.
 - macOS releases should target both Intel 64-bit and Apple silicon unless the platform plan is intentionally revised.
 - Keep authoritative game simulation in `Asterforge.Game` without Unity engine references.
