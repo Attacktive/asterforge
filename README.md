@@ -1,10 +1,10 @@
 # Asterforge
 
-Asterforge is an automation-first incremental game about growing a tiny industrial outpost into a stellar-scale production civilization.
+Asterforge is an automation-first incremental game where a tiny industrial outpost grows into a stellar-scale production civilization.
 
-Every world is fully playable alone. Optional peer-to-peer cooperation lets independent worlds exchange surplus resources and contribute to shared projects without gating progression.
+The game is designed to be complete when played alone. Optional multiplayer will later connect independent worlds for resource exchange and cooperative projects without gating progression.
 
-## Platforms
+## Platform targets
 
 The first-class desktop targets are:
 
@@ -20,12 +20,12 @@ The current Outpost prototype auto-bootstraps when entering Play Mode, so no sce
 1. Open the project in Unity 6000.6.5f1.
 2. Press the Play button in the editor toolbar.
 3. Switch to the Game view if Unity does not focus it automatically.
-4. Mine Ore, build production machines, complete Industrialization, then work toward Steel.
+4. Mine Ore, build production machines, fund Industrialization, then work toward Steel.
+
+Industrialization accepts permanent partial contributions. Machine groups can be paused and resumed so intermediate resources can be stockpiled without overbuilding every upstream stage.
 
 The current presentation uses a temporary IMGUI shell so the real economy loop can be played before production UI and 2D art are built.
 
 ## First milestone
 
 The first vertical slice is deliberately solo. It ends when the player can sustain steel production and proves the production, power, research, persistence, and offline-progress loops before networking is introduced.
-
-See [`docs/DESIGN.md`](docs/DESIGN.md) for the current product decisions.
