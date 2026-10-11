@@ -72,6 +72,7 @@ namespace Asterforge.Game.Simulation.Production
 				{
 					throw new InvalidOperationException("Production inputs changed while applying a simulation step.");
 				}
+			}
 		}
 	}
 }
