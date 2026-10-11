@@ -1,0 +1,21 @@
+{
+  "name": "Asterforge.Game.Tests",
+  "rootNamespace": "Asterforge.Game.Tests",
+  "references": [
+    "Asterforge.Game"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "noEngineReferences": false
+}
