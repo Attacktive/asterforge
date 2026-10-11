@@ -13,6 +13,17 @@ The first-class desktop targets are:
 
 The project is pinned to Unity 6000.6.5f1 and uses URP.
 
+## Play the prototype
+
+The current Outpost prototype auto-bootstraps when entering Play Mode, so no scene setup is required yet.
+
+1. Open the project in Unity 6000.6.5f1.
+2. Press the Play button in the editor toolbar.
+3. Switch to the Game view if Unity does not focus it automatically.
+4. Mine Ore, build production machines, complete Industrialization, then work toward Steel.
+
+The current presentation uses a temporary IMGUI shell so the real economy loop can be played before production UI and 2D art are built.
+
 ## First milestone
 
 The first vertical slice is deliberately solo. It ends when the player can sustain steel production and proves the production, power, research, persistence, and offline-progress loops before networking is introduced.
