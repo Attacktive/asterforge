@@ -155,7 +155,12 @@ namespace Asterforge.Unity.Presentation
 
 		private void DrawHeader(bool wideLayout)
 		{
-			var left = wideLayout ? 28f : 18f;
+			var left = 18f;
+			if (wideLayout)
+			{
+				left = 28f;
+			}
+
 			GUI.Label(new Rect(left, 16f, Screen.width - 220f, 26f), "ASTERFORGE", titleStyle);
 			GUI.Label(new Rect(left + 1f, 45f, Screen.width - 230f, 24f), status, bodyStyle);
 
@@ -210,7 +215,12 @@ namespace Asterforge.Unity.Presentation
 
 		private void DrawFactory(float width, float floor)
 		{
-			var machines = world.IsIndustrialized ? 6 : 4;
+			var machines = 4;
+			if (world.IsIndustrialized)
+			{
+				machines = 6;
+			}
+
 			var spacing = width / (machines + 1f);
 			for (var index = 0; index < machines; index++)
 			{
@@ -264,7 +274,13 @@ namespace Asterforge.Unity.Presentation
 			{
 				DrawRect(new Rect(centerX - 2f, body.y - 28f, 4f, 28f), trimColor);
 				var pulse = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 2.6f);
-				var pulseColor = new Color(cyanColor.r, cyanColor.g, cyanColor.b, active ? 0.46f + pulse * 0.45f : 0.12f);
+				var pulseAlpha = 0.12f;
+				if (active)
+				{
+					pulseAlpha = 0.46f + pulse * 0.45f;
+				}
+
+				var pulseColor = new Color(cyanColor.r, cyanColor.g, cyanColor.b, pulseAlpha);
 				var previousColor = GUI.color;
 				GUI.color = pulseColor;
 				GUI.DrawTexture(new Rect(centerX - 8f, body.y - 36f, 16f, 16f), circleTexture, ScaleMode.StretchToFill, true);
@@ -351,7 +367,12 @@ namespace Asterforge.Unity.Presentation
 				machineCount += world.Machines.Get(machine);
 			}
 
-			var phase = world.IsIndustrialized ? "INDUSTRY" : "OUTPOST";
+			var phase = "OUTPOST";
+			if (world.IsIndustrialized)
+			{
+				phase = "INDUSTRY";
+			}
+
 			GUI.Label(new Rect(16f, height - 38f, width - 32f, 20f), $"{phase} PHASE   //   {machineCount} MACHINES ONLINE", vistaLabelStyle);
 		}
 
@@ -464,7 +485,16 @@ namespace Asterforge.Unity.Presentation
 				buttonText = "INSUFFICIENT MATERIAL";
 			}
 
-			var style = GUI.enabled ? buttonStyle : buttonDisabledStyle;
+			GUIStyle style;
+			if (GUI.enabled)
+			{
+				style = buttonStyle;
+			}
+			else
+			{
+				style = buttonDisabledStyle;
+			}
+
 			if (GUILayout.Button(buttonText, style, GUILayout.Height(34f)) && world.TryBuyMachine(machine))
 			{
 				status = $"{GetMachineName(machine)} commissioned. Production array expanded.";
@@ -503,7 +533,16 @@ namespace Asterforge.Unity.Presentation
 
 			var previousEnabled = GUI.enabled;
 			GUI.enabled = CanAfford(world.IndustrializationCost);
-			var style = GUI.enabled ? buttonStyle : buttonDisabledStyle;
+			GUIStyle style;
+			if (GUI.enabled)
+			{
+				style = buttonStyle;
+			}
+			else
+			{
+				style = buttonDisabledStyle;
+			}
+
 			if (GUILayout.Button("RESEARCH INDUSTRIALIZATION", style, GUILayout.Height(38f)) && world.TryIndustrialize())
 			{
 				status = "Industrialization breakthrough confirmed. Heavy industry is online.";
@@ -875,7 +914,7 @@ namespace Asterforge.Unity.Presentation
 		{
 			if (texture != null)
 			{
-				Destroy(texture);
+				UnityEngine.Object.Destroy(texture);
 			}
 		}
 	}
