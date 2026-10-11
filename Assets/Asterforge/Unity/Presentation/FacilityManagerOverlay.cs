@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection;
+using Asterforge.Game.Simulation.Production;
 using Asterforge.Game.Simulation.Progression;
 using UnityEngine;
 
@@ -153,7 +154,7 @@ namespace Asterforge.Unity.Presentation
 		{
 			GUI.DrawTexture(rect, cardTexture);
 
-			var industryManager = manager.Machine == Game.Simulation.Production.MachineType.CoalMine || manager.Machine == Game.Simulation.Production.MachineType.Steelworks;
+			var industryManager = manager.Machine == MachineType.CoalMine || manager.Machine == MachineType.Steelworks;
 			var accent = amberColor;
 			if (industryManager)
 			{
