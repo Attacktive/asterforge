@@ -32,7 +32,7 @@ namespace Asterforge.Game.Simulation.Production
 
 			foreach (var recipe in recipes)
 			{
-				var machineCount = machines.Get(recipe.Machine);
+				var machineCount = machines.GetActive(recipe.Machine);
 				if (machineCount == 0 || elapsedSeconds == 0)
 				{
 					continue;
@@ -72,7 +72,6 @@ namespace Asterforge.Game.Simulation.Production
 				{
 					throw new InvalidOperationException("Production inputs changed while applying a simulation step.");
 				}
-			}
 		}
 	}
 }
