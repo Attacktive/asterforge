@@ -41,5 +41,15 @@ namespace Asterforge.Game.Simulation.Resources
 
 			return true;
 		}
+
+		internal void Set(ResourceType resource, long amount)
+		{
+			if (amount < 0)
+			{
+				throw new ArgumentOutOfRangeException(nameof(amount), amount, "Resource balances cannot be negative.");
+			}
+
+			amounts[(int)resource] = amount;
+		}
 	}
 }

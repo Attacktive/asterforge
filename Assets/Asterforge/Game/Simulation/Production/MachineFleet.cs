@@ -23,5 +23,15 @@ namespace Asterforge.Game.Simulation.Production
 				counts[(int)machine] += count;
 			}
 		}
+
+		internal void Set(MachineType machine, int count)
+		{
+			if (count < 0)
+			{
+				throw new ArgumentOutOfRangeException(nameof(count), count, "Machine counts cannot be negative.");
+			}
+
+			counts[(int)machine] = count;
+		}
 	}
 }
