@@ -32,7 +32,7 @@ namespace Asterforge.Game.Simulation.Production
 
 			foreach (var recipe in recipes)
 			{
-				var machineCount = machines.GetActive(recipe.Machine);
+				var machineCount = machines.Get(recipe.Machine);
 				if (machineCount == 0 || elapsedSeconds == 0)
 				{
 					continue;

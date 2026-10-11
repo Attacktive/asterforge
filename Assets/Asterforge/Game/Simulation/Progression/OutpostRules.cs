@@ -42,9 +42,7 @@ namespace Asterforge.Game.Simulation.Progression
 		private static readonly IReadOnlyList<ResourceCost> industrializationCost = Array.AsReadOnly(
 			new[]
 			{
-				new ResourceCost(ResourceType.Metal, 500),
-				new ResourceCost(ResourceType.Components, 100),
-				new ResourceCost(ResourceType.Research, 50)
+				new ResourceCost(ResourceType.Research, 100)
 			}
 		);
 

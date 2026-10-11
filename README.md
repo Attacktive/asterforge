@@ -20,9 +20,9 @@ The current Outpost prototype auto-bootstraps when entering Play Mode, so no sce
 1. Open the project in Unity 6000.6.5f1.
 2. Press the Play button in the editor toolbar.
 3. Switch to the Game view if Unity does not focus it automatically.
-4. Mine Ore, build production machines, fund Industrialization, then work toward Steel.
+4. Mine Ore, build production machines, research Industrialization, then work toward Steel.
 
-Industrialization accepts permanent partial contributions. Machine groups can be paused and resumed so intermediate resources can be stockpiled without overbuilding every upstream stage.
+Industrialization costs 100 Research. The production chain can keep running normally while Research accumulates, so no intermediate stockpile management is required.
 
 The current presentation uses a temporary IMGUI shell so the real economy loop can be played before production UI and 2D art are built.
 

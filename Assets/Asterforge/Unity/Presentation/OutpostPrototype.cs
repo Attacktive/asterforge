@@ -123,7 +123,7 @@ namespace Asterforge.Unity.Presentation
 				}
 
 				GUILayout.Space(12f);
-				GUILayout.Label($"Steel capacity: up to {world.Machines.GetActive(MachineType.Steelworks)} /s", headingStyle);
+				GUILayout.Label($"Steel capacity: up to {world.Machines.Get(MachineType.Steelworks)} /s", headingStyle);
 				GUILayout.Label("Vertical-slice goal: sustain at least 1 Steel/s. Power, saving, and prettier machinery come after this prototype loop proves itself.", mutedStyle);
 			}
 
@@ -150,24 +150,15 @@ namespace Asterforge.Unity.Presentation
 			var unlocked = world.IsMachineUnlocked(machine);
 			var costs = world.GetMachineCost(machine);
 			var affordable = CanAfford(costs);
-			var owned = world.Machines.Get(machine);
-			var paused = world.IsMachinePaused(machine);
 
 			GUILayout.BeginVertical(GUI.skin.box);
 			GUILayout.BeginHorizontal();
-			var state = string.Empty;
-			if (paused && owned > 0)
-			{
-				state = "  [PAUSED]";
-			}
-
-			GUILayout.Label($"{GetMachineName(machine)}  x{owned}{state}", headingStyle);
+			GUILayout.Label($"{GetMachineName(machine)}  x{world.Machines.Get(machine)}", headingStyle);
 			GUILayout.FlexibleSpace();
 			GUILayout.Label(GetMachineFlow(machine), mutedStyle);
 			GUILayout.EndHorizontal();
 			GUILayout.Label($"Next cost: {FormatCosts(costs)}", mutedStyle);
 
-			GUILayout.BeginHorizontal();
 			var previousEnabled = GUI.enabled;
 			GUI.enabled = unlocked && affordable;
 			var buttonText = "Build";
@@ -185,25 +176,7 @@ namespace Asterforge.Unity.Presentation
 				status = $"Built {GetMachineName(machine)}.";
 			}
 
-			GUI.enabled = owned > 0;
-			var pauseButtonText = paused switch
-			{
-				true => "Resume",
-				false => "Pause"
-			};
-
-			if (GUILayout.Button(pauseButtonText, GUILayout.Width(100f), GUILayout.Height(34f)))
-			{
-				world.SetMachinePaused(machine, !paused);
-				status = paused switch
-				{
-					true => $"Resumed {GetMachineName(machine)}.",
-					false => $"Paused {GetMachineName(machine)}."
-				};
-			}
-
 			GUI.enabled = previousEnabled;
-			GUILayout.EndHorizontal();
 			GUILayout.EndVertical();
 		}
 
@@ -217,43 +190,16 @@ namespace Asterforge.Unity.Presentation
 				return;
 			}
 
-			foreach (var cost in world.IndustrializationCost)
-			{
-				var contributed = world.GetIndustrializationContribution(cost.Resource);
-				GUILayout.Label($"{cost.Resource}: {FormatAmount(contributed)} / {FormatAmount(cost.Amount)}", mutedStyle);
-			}
-
-			GUILayout.Label("Funding is permanent. Pause downstream machine groups when you want to stockpile intermediate resources for the project.", mutedStyle);
+			GUILayout.Label($"Research cost: {FormatCosts(world.IndustrializationCost)}", mutedStyle);
+			GUILayout.Label("Industrialization is a research breakthrough. Your production chain can keep running normally while Research accumulates.", mutedStyle);
 			var previousEnabled = GUI.enabled;
-			GUI.enabled = CanContributeToIndustrialization();
-			if (GUILayout.Button("Contribute available resources", GUILayout.Height(38f)))
+			GUI.enabled = CanAfford(world.IndustrializationCost);
+			if (GUILayout.Button("Research Industrialization", GUILayout.Height(38f)) && world.TryIndustrialize())
 			{
-				var contributed = world.ContributeAvailableToIndustrialization();
-				if (world.IsIndustrialized)
-				{
-					status = "Industrialization complete. The outpost has become alarmingly serious.";
-				}
-				else
-				{
-					status = $"Banked {FormatAmount(contributed)} units toward Industrialization.";
-				}
+				status = "Industrialization researched. Coal and Steel production are unlocked.";
 			}
 
 			GUI.enabled = previousEnabled;
-		}
-
-		private bool CanContributeToIndustrialization()
-		{
-			foreach (var cost in world.IndustrializationCost)
-			{
-				var contributed = world.GetIndustrializationContribution(cost.Resource);
-				if (contributed < cost.Amount && world.Resources.Get(cost.Resource) > 0)
-				{
-					return true;
-				}
-			}
-
-			return false;
 		}
 
 		private bool CanAfford(IReadOnlyList<ResourceCost> costs)

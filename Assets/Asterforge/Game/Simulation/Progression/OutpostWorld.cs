@@ -8,7 +8,6 @@ namespace Asterforge.Game.Simulation.Progression
 	public sealed class OutpostWorld
 	{
 		private readonly ProductionSimulator productionSimulator = new ProductionSimulator(OutpostRecipes.All);
-		private readonly long[] industrializationContributions = new long[Enum.GetValues(typeof(ResourceType)).Length];
 
 		public ResourceLedger Resources { get; } = new ResourceLedger();
 
@@ -33,11 +32,6 @@ namespace Asterforge.Game.Simulation.Progression
 			return OutpostRules.IsMachineUnlocked(machine, Machines, IsIndustrialized);
 		}
 
-		public bool IsMachinePaused(MachineType machine)
-		{
-			return Machines.IsPaused(machine);
-		}
-
 		public bool TryBuyMachine(MachineType machine)
 		{
 			if (!IsMachineUnlocked(machine))
@@ -57,78 +51,22 @@ namespace Asterforge.Game.Simulation.Progression
 			return true;
 		}
 
-		public bool SetMachinePaused(MachineType machine, bool isPaused)
+		public bool TryIndustrialize()
 		{
-			if (Machines.Get(machine) == 0)
+			if (IsIndustrialized)
 			{
 				return false;
 			}
 
-			Machines.SetPaused(machine, isPaused);
+			if (!CanAfford(IndustrializationCost))
+			{
+				return false;
+			}
+
+			Spend(IndustrializationCost);
+			IsIndustrialized = true;
 
 			return true;
-		}
-
-		public long GetIndustrializationContribution(ResourceType resource)
-		{
-			return industrializationContributions[(int)resource];
-		}
-
-		public long GetIndustrializationRequirement(ResourceType resource)
-		{
-			foreach (var cost in IndustrializationCost)
-			{
-				if (cost.Resource == resource)
-				{
-					return cost.Amount;
-				}
-			}
-
-			return 0;
-		}
-
-		public long ContributeToIndustrialization(ResourceType resource)
-		{
-			if (IsIndustrialized)
-			{
-				return 0;
-			}
-
-			var required = GetIndustrializationRequirement(resource);
-			if (required == 0)
-			{
-				return 0;
-			}
-
-			var contributed = GetIndustrializationContribution(resource);
-			var remaining = required - contributed;
-			var amount = Math.Min(Resources.Get(resource), remaining);
-			if (amount == 0)
-			{
-				return 0;
-			}
-
-			var spent = Resources.TrySpend(resource, amount);
-			if (!spent)
-			{
-				throw new InvalidOperationException("Resource balances changed while funding Industrialization.");
-			}
-
-			industrializationContributions[(int)resource] = checked(contributed + amount);
-			CompleteIndustrializationIfFunded();
-
-			return amount;
-		}
-
-		public long ContributeAvailableToIndustrialization()
-		{
-			var total = 0L;
-			foreach (var cost in IndustrializationCost)
-			{
-				total = checked(total + ContributeToIndustrialization(cost.Resource));
-			}
-
-			return total;
 		}
 
 		public void Advance(long elapsedSeconds)
@@ -159,19 +97,6 @@ namespace Asterforge.Game.Simulation.Progression
 					throw new InvalidOperationException("Resource balances changed while applying an Outpost action.");
 				}
 			}
-		}
-
-		private void CompleteIndustrializationIfFunded()
-		{
-			foreach (var cost in IndustrializationCost)
-			{
-				if (GetIndustrializationContribution(cost.Resource) < cost.Amount)
-				{
-					return;
-				}
-			}
-
-			IsIndustrialized = true;
 		}
 	}
 }

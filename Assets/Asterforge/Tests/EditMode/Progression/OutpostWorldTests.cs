@@ -65,74 +65,30 @@ namespace Asterforge.Game.Tests.Progression
 		}
 
 		[Test]
-		public void ContributeAvailableToIndustrialization_BanksPartialProgress()
+		public void TryIndustrialize_WhenResearchIsSufficient_SpendsResearchAndUnlocksIndustry()
 		{
-			world.Resources.Add(ResourceType.Metal, 200);
-			world.Resources.Add(ResourceType.Components, 25);
+			world.Resources.Add(ResourceType.Research, 125);
 
-			var contributed = world.ContributeAvailableToIndustrialization();
+			var industrialized = world.TryIndustrialize();
 
-			Assert.That(contributed, Is.EqualTo(225));
-			Assert.That(world.GetIndustrializationContribution(ResourceType.Metal), Is.EqualTo(200));
-			Assert.That(world.GetIndustrializationContribution(ResourceType.Components), Is.EqualTo(25));
-			Assert.That(world.Resources.Get(ResourceType.Metal), Is.Zero);
-			Assert.That(world.Resources.Get(ResourceType.Components), Is.Zero);
-			Assert.That(world.IsIndustrialized, Is.False);
-		}
-
-		[Test]
-		public void ContributeAvailableToIndustrialization_WhenFullyFunded_UnlocksIndustryAndLeavesSurplus()
-		{
-			world.Resources.Add(ResourceType.Metal, 600);
-			world.Resources.Add(ResourceType.Components, 125);
-			world.Resources.Add(ResourceType.Research, 75);
-
-			var contributed = world.ContributeAvailableToIndustrialization();
-
-			Assert.That(contributed, Is.EqualTo(650));
+			Assert.That(industrialized, Is.True);
 			Assert.That(world.IsIndustrialized, Is.True);
 			Assert.That(world.IsMachineUnlocked(MachineType.CoalMine), Is.True);
 			Assert.That(world.IsMachineUnlocked(MachineType.Steelworks), Is.True);
-			Assert.That(world.Resources.Get(ResourceType.Metal), Is.EqualTo(100));
-			Assert.That(world.Resources.Get(ResourceType.Components), Is.EqualTo(25));
 			Assert.That(world.Resources.Get(ResourceType.Research), Is.EqualTo(25));
 		}
 
 		[Test]
-		public void ContributeAvailableToIndustrialization_AcrossSeparateStockpiles_PreservesEarlierFunding()
+		public void TryIndustrialize_WhenResearchIsInsufficient_DoesNotUnlockIndustry()
 		{
-			world.Resources.Add(ResourceType.Research, 50);
-			world.ContributeAvailableToIndustrialization();
-			world.Resources.Add(ResourceType.Components, 100);
-			world.ContributeAvailableToIndustrialization();
-			world.Resources.Add(ResourceType.Metal, 500);
+			world.Resources.Add(ResourceType.Research, 99);
 
-			world.ContributeAvailableToIndustrialization();
+			var industrialized = world.TryIndustrialize();
 
-			Assert.That(world.IsIndustrialized, Is.True);
-			Assert.That(world.GetIndustrializationContribution(ResourceType.Research), Is.EqualTo(50));
-			Assert.That(world.GetIndustrializationContribution(ResourceType.Components), Is.EqualTo(100));
-			Assert.That(world.GetIndustrializationContribution(ResourceType.Metal), Is.EqualTo(500));
-		}
-
-		[Test]
-		public void SetMachinePaused_StopsAndResumesProduction()
-		{
-			world.Resources.Add(ResourceType.Ore, 35);
-			world.TryBuyMachine(MachineType.Extractor);
-			world.TryBuyMachine(MachineType.Smelter);
-			world.SetMachinePaused(MachineType.Smelter, true);
-
-			world.Advance(10);
-
-			Assert.That(world.Resources.Get(ResourceType.Ore), Is.EqualTo(10));
-			Assert.That(world.Resources.Get(ResourceType.Metal), Is.Zero);
-
-			world.SetMachinePaused(MachineType.Smelter, false);
-			world.Advance(10);
-
-			Assert.That(world.Resources.Get(ResourceType.Ore), Is.Zero);
-			Assert.That(world.Resources.Get(ResourceType.Metal), Is.EqualTo(10));
+			Assert.That(industrialized, Is.False);
+			Assert.That(world.IsIndustrialized, Is.False);
+			Assert.That(world.IsMachineUnlocked(MachineType.CoalMine), Is.False);
+			Assert.That(world.Resources.Get(ResourceType.Research), Is.EqualTo(99));
 		}
 
 		[Test]
