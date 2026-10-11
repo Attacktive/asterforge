@@ -155,7 +155,12 @@ namespace Asterforge.Unity.Presentation
 
 			GUILayout.BeginVertical(GUI.skin.box);
 			GUILayout.BeginHorizontal();
-			var state = paused && owned > 0 ? "  [PAUSED]" : string.Empty;
+			var state = string.Empty;
+			if (paused && owned > 0)
+			{
+				state = "  [PAUSED]";
+			}
+
 			GUILayout.Label($"{GetMachineName(machine)}  x{owned}{state}", headingStyle);
 			GUILayout.FlexibleSpace();
 			GUILayout.Label(GetMachineFlow(machine), mutedStyle);
@@ -181,10 +186,20 @@ namespace Asterforge.Unity.Presentation
 			}
 
 			GUI.enabled = owned > 0;
-			if (GUILayout.Button(paused ? "Resume" : "Pause", GUILayout.Width(100f), GUILayout.Height(34f)))
+			var pauseButtonText = paused switch
+			{
+				true => "Resume",
+				false => "Pause"
+			};
+
+			if (GUILayout.Button(pauseButtonText, GUILayout.Width(100f), GUILayout.Height(34f)))
 			{
 				world.SetMachinePaused(machine, !paused);
-				status = paused ? $"Resumed {GetMachineName(machine)}." : $"Paused {GetMachineName(machine)}.";
+				status = paused switch
+				{
+					true => $"Resumed {GetMachineName(machine)}.",
+					false => $"Paused {GetMachineName(machine)}."
+				};
 			}
 
 			GUI.enabled = previousEnabled;
