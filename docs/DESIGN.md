@@ -48,21 +48,44 @@ Initial production chain:
 
 `Ore -> Metal -> Components -> Research`
 
+Industrialization is a Research breakthrough rather than a simultaneous warehouse requirement. The prototype cost is 100 Research. Reaching the milestone therefore rewards a functioning automated production chain instead of requiring the player to stop or overbuild downstream production merely to stockpile intermediates.
+
 Industry adds Coal and Steel. Coal deliberately has competing uses in steel production and electricity generation, creating the first meaningful throughput constraint.
 
 Power is capacity rather than a stored resource. When demand exceeds supply, production degrades gracefully instead of machines abruptly switching off.
 
+## Facility managers
+
+Every production facility has a persistent named manager who gives the facility a human identity. Managers are part of presentation and worldbuilding before they are a game system.
+
+The initial cast is:
+
+- Rhea Vale: Extraction Foreman
+- Toma Sato: Furnace Chief
+- Mara Quinn: Assembly Lead
+- Dr. Ivo Mercer: Research Director
+- Nika Drazic: Mining Supervisor
+- Elias Voss: Steelworks Superintendent
+
+Managers appear as the production stage they supervise becomes available. Their portraits and operational state should make the factory feel inhabited without requiring worker simulation.
+
+Managers do not currently provide bonuses, traits, morale, levels, or progression gates. Those mechanics should only be introduced later if the characters remain valuable after the core factory loop is proven.
+
 ## Presentation
 
-The game is a living 2D industrial diorama backed by a dashboard-style interface. It is not a free-placement factory builder. Production groups are logical systems while animated machinery, belts, furnaces, generators, lighting, and effects visualize their state and throughput.
+The game is a living 2D industrial diorama backed by a dashboard-style interface. It is not a free-placement factory builder. Production groups are logical systems while animated machinery, belts, furnaces, generators, lighting, effects, and facility managers visualize their state and throughput.
 
-The visual direction is clean retro-industrial science fiction. Complexity and visual scale increase with technological eras.
+The visual direction is clean retro-industrial science fiction with anime-style human character art. Complexity and visual scale increase with technological eras.
 
-## Idle behavior
+## Idle behavior and persistence
 
 Offline progress is first-class. The authoritative simulation should use rates, timestamps, and state-changing events so long absences can be advanced analytically where practical rather than replaying missed frame ticks.
 
 There is no arbitrary offline-progress time cap.
+
+Persistent world snapshots are versioned. At minimum they preserve resources, machine counts, progression milestones, and the timestamp needed to calculate offline advancement. Presentation state should not become authoritative save data unless it materially affects gameplay.
+
+The current prototype autosaves periodically and saves on application pause or quit. The prototype persistence adapter is disposable infrastructure; production persistence should eventually sit behind a stable session/save boundary rather than reaching into presentation objects.
 
 ## Multiplayer contract
 
