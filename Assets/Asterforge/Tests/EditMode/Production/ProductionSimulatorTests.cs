@@ -71,6 +71,18 @@ namespace Asterforge.Game.Tests.Production
 		}
 
 		[Test]
+		public void PowerGrid_WithDefaultFuelQuantity_Throws()
+		{
+			Assert.Throws<ArgumentOutOfRangeException>(
+				() => new PowerGrid(
+					MachineType.CoalGenerator,
+					4,
+					default
+				)
+			);
+		}
+
+		[Test]
 		public void Advance_WithFueledGenerator_PowersSteelProduction()
 		{
 			var poweredSimulator = CreatePoweredSimulator(OutpostRecipes.All);
