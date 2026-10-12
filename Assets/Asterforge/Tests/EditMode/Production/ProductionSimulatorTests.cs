@@ -158,11 +158,85 @@ namespace Asterforge.Game.Tests.Production
 			Assert.That(resources.Get(ResourceType.Steel), Is.EqualTo(10));
 		}
 
-		private static ProductionSimulator CreatePoweredSimulator(IReadOnlyList<ProductionRecipe> recipes)
+		[Test]
+		public void Advance_WhenFuelIsSharedWithPoweredInput_IsBatchInvariant()
+		{
+			var batchedResources = new ResourceLedger();
+			var batchedMachines = new MachineFleet();
+			var batchedSimulator = CreatePoweredSimulator(OutpostRecipes.All);
+			batchedResources.Add(ResourceType.Metal, 40);
+			batchedResources.Add(ResourceType.Coal, 20);
+			batchedMachines.Add(MachineType.CoalGenerator);
+			batchedMachines.Add(MachineType.Steelworks);
+
+			var batchedStatus = batchedSimulator.Advance(batchedResources, batchedMachines, 10);
+
+			var steppedResources = new ResourceLedger();
+			var steppedMachines = new MachineFleet();
+			var steppedSimulator = CreatePoweredSimulator(OutpostRecipes.All);
+			steppedResources.Add(ResourceType.Metal, 40);
+			steppedResources.Add(ResourceType.Coal, 20);
+			steppedMachines.Add(MachineType.CoalGenerator);
+			steppedMachines.Add(MachineType.Steelworks);
+			var steppedFuelConsumed = 0L;
+			for (var second = 0; second < 10; second++)
+			{
+				steppedFuelConsumed += steppedSimulator.Advance(steppedResources, steppedMachines, 1).FuelConsumed;
+			}
+
+			Assert.That(batchedResources.Get(ResourceType.Metal), Is.EqualTo(steppedResources.Get(ResourceType.Metal)));
+			Assert.That(batchedResources.Get(ResourceType.Coal), Is.EqualTo(steppedResources.Get(ResourceType.Coal)));
+			Assert.That(batchedResources.Get(ResourceType.Steel), Is.EqualTo(steppedResources.Get(ResourceType.Steel)));
+			Assert.That(batchedStatus.FuelConsumed, Is.EqualTo(steppedFuelConsumed));
+			Assert.That(batchedResources.Get(ResourceType.Steel), Is.EqualTo(6));
+			Assert.That(batchedStatus.FuelConsumed, Is.EqualTo(7));
+		}
+
+		[Test]
+		public void Advance_WithFractionalBrownout_CarriesProductionAcrossAdvances()
+		{
+			var poweredSimulator = CreatePoweredSimulator(OutpostRecipes.All, 2);
+			resources.Add(ResourceType.Metal, 40);
+			resources.Add(ResourceType.Coal, 40);
+			machines.Add(MachineType.CoalGenerator);
+			machines.Add(MachineType.Steelworks);
+
+			var fuelConsumed = 0L;
+			for (var second = 0; second < 10; second++)
+			{
+				fuelConsumed += poweredSimulator.Advance(resources, machines, 1).FuelConsumed;
+			}
+
+			Assert.That(resources.Get(ResourceType.Steel), Is.EqualTo(5));
+			Assert.That(resources.Get(ResourceType.Metal), Is.EqualTo(20));
+			Assert.That(resources.Get(ResourceType.Coal), Is.EqualTo(20));
+			Assert.That(fuelConsumed, Is.EqualTo(10));
+		}
+
+		[Test]
+		public void Advance_WithLargeRepresentableInterval_DoesNotOverflowPowerRatio()
+		{
+			var poweredSimulator = CreatePoweredSimulator(OutpostRecipes.All);
+			resources.Add(ResourceType.Metal, 8_000_000_000L);
+			resources.Add(ResourceType.Coal, 6_000_000_000L);
+			machines.Add(MachineType.CoalGenerator, 1_000);
+			machines.Add(MachineType.Steelworks, 1_000);
+
+			PowerStatus status = default;
+			Assert.DoesNotThrow(() => status = poweredSimulator.Advance(resources, machines, 2_000_000));
+
+			Assert.That(resources.Get(ResourceType.Metal), Is.Zero);
+			Assert.That(resources.Get(ResourceType.Coal), Is.Zero);
+			Assert.That(resources.Get(ResourceType.Steel), Is.EqualTo(2_000_000_000L));
+			Assert.That(status.FuelConsumed, Is.EqualTo(2_000_000_000L));
+			Assert.That(status.IsBrownout, Is.False);
+		}
+
+		private static ProductionSimulator CreatePoweredSimulator(IReadOnlyList<ProductionRecipe> recipes, int capacityPerGenerator = 4)
 		{
 			var powerGrid = new PowerGrid(
 				MachineType.CoalGenerator,
-				4,
+				capacityPerGenerator,
 				new ResourceQuantity(ResourceType.Coal, 1)
 			);
 

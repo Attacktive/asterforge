@@ -83,40 +83,5 @@ namespace Asterforge.Game.Simulation.Production
 
 			return demand;
 		}
-
-		internal PowerStatus Supply(ResourceLedger resources, MachineFleet machines, IReadOnlyList<ProductionRecipe> recipes, long elapsedSeconds)
-		{
-			var capacity = GetCapacity(machines);
-			var demand = GetDemand(machines, recipes);
-			var demandedCapacitySeconds = checked(demand * elapsedSeconds);
-			if (elapsedSeconds == 0 || demand == 0 || capacity == 0)
-			{
-				return new PowerStatus(capacity, demand, 0, demandedCapacitySeconds, 0);
-			}
-
-			var generatorCount = machines.Get(GeneratorMachine);
-			var maximumGeneratorSeconds = checked((long)generatorCount * elapsedSeconds);
-			var requiredGeneratorSeconds = DivideRoundUp(demandedCapacitySeconds, CapacityPerGenerator);
-			var affordableGeneratorSeconds = resources.Get(FuelPerGeneratorSecond.Resource) / FuelPerGeneratorSecond.Amount;
-			var activeGeneratorSeconds = Math.Min(maximumGeneratorSeconds, Math.Min(requiredGeneratorSeconds, affordableGeneratorSeconds));
-			var fuelConsumed = checked(activeGeneratorSeconds * FuelPerGeneratorSecond.Amount);
-			if (fuelConsumed > 0)
-			{
-				var spent = resources.TrySpend(FuelPerGeneratorSecond.Resource, fuelConsumed);
-				if (!spent)
-				{
-					throw new InvalidOperationException("Generator fuel changed while applying a simulation step.");
-				}
-			}
-
-			var suppliedCapacitySeconds = Math.Min(demandedCapacitySeconds, checked(activeGeneratorSeconds * CapacityPerGenerator));
-
-			return new PowerStatus(capacity, demand, suppliedCapacitySeconds, demandedCapacitySeconds, fuelConsumed);
-		}
-
-		private static long DivideRoundUp(long numerator, long denominator)
-		{
-			return checked((numerator + denominator - 1L) / denominator);
-		}
 	}
 }
