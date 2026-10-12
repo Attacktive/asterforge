@@ -8,25 +8,13 @@ namespace Asterforge.Game.Simulation.Progression
 {
 	public sealed class OutpostWorld
 	{
-		private static readonly PowerGrid powerGrid = new PowerGrid(
-			MachineType.CoalGenerator,
-			4,
-			new ResourceQuantity(ResourceType.Coal, 1)
-		);
-
-		private readonly ProductionSimulator productionSimulator = new ProductionSimulator(OutpostRecipes.All, powerGrid);
+		private readonly ProductionSimulator productionSimulator = new ProductionSimulator(OutpostRecipes.All);
 
 		public ResourceLedger Resources { get; } = new ResourceLedger();
 
 		public MachineFleet Machines { get; } = new MachineFleet();
 
 		public bool IsIndustrialized { get; private set; }
-
-		public PowerStatus LastPowerStatus { get; private set; }
-
-		public long PowerCapacity => powerGrid.GetCapacity(Machines);
-
-		public long PowerDemand => powerGrid.GetDemand(Machines, OutpostRecipes.All);
 
 		public IReadOnlyList<ResourceCost> IndustrializationCost => OutpostRules.IndustrializationCost;
 
@@ -84,7 +72,7 @@ namespace Asterforge.Game.Simulation.Progression
 
 		public void Advance(long elapsedSeconds)
 		{
-			LastPowerStatus = productionSimulator.Advance(Resources, Machines, elapsedSeconds);
+			productionSimulator.Advance(Resources, Machines, elapsedSeconds);
 		}
 
 		public OutpostSnapshot CaptureSnapshot(long savedAtUnixSeconds)
