@@ -39,6 +39,12 @@ namespace Asterforge.Game.Simulation.Progression
 			new ResourceCost(ResourceType.Components, 50)
 		};
 
+		private static readonly ResourceCost[] coalGeneratorBaseCost =
+		{
+			new ResourceCost(ResourceType.Metal, 150),
+			new ResourceCost(ResourceType.Components, 30)
+		};
+
 		private static readonly IReadOnlyList<ResourceCost> industrializationCost = Array.AsReadOnly(
 			new[]
 			{
@@ -63,6 +69,7 @@ namespace Asterforge.Game.Simulation.Progression
 				MachineType.ResearchStation => researchStationBaseCost,
 				MachineType.CoalMine => coalMineBaseCost,
 				MachineType.Steelworks => steelworksBaseCost,
+				MachineType.CoalGenerator => coalGeneratorBaseCost,
 				_ => throw new ArgumentOutOfRangeException(nameof(machine), machine, "Unknown machine type.")
 			};
 
@@ -84,6 +91,7 @@ namespace Asterforge.Game.Simulation.Progression
 				MachineType.ResearchStation => machines.Get(MachineType.Assembler) > 0,
 				MachineType.CoalMine => isIndustrialized,
 				MachineType.Steelworks => isIndustrialized,
+				MachineType.CoalGenerator => isIndustrialized,
 				_ => false
 			};
 		}

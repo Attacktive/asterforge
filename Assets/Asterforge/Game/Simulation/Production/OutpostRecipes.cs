@@ -50,7 +50,8 @@ namespace Asterforge.Game.Simulation.Production
 						new ResourceQuantity(ResourceType.Metal, 4),
 						new ResourceQuantity(ResourceType.Coal, 2)
 					},
-					new ResourceQuantity(ResourceType.Steel, 1)
+					new ResourceQuantity(ResourceType.Steel, 1),
+					4
 				)
 			}
 		);

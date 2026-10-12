@@ -8,13 +8,25 @@ namespace Asterforge.Game.Simulation.Progression
 {
 	public sealed class OutpostWorld
 	{
-		private readonly ProductionSimulator productionSimulator = new ProductionSimulator(OutpostRecipes.All);
+		private static readonly PowerGrid powerGrid = new PowerGrid(
+			MachineType.CoalGenerator,
+			4,
+			new ResourceQuantity(ResourceType.Coal, 1)
+		);
+
+		private readonly ProductionSimulator productionSimulator = new ProductionSimulator(OutpostRecipes.All, powerGrid);
 
 		public ResourceLedger Resources { get; } = new ResourceLedger();
 
 		public MachineFleet Machines { get; } = new MachineFleet();
 
 		public bool IsIndustrialized { get; private set; }
+
+		public PowerStatus LastPowerStatus { get; private set; }
+
+		public long PowerCapacity => powerGrid.GetCapacity(Machines);
+
+		public long PowerDemand => powerGrid.GetDemand(Machines, OutpostRecipes.All);
 
 		public IReadOnlyList<ResourceCost> IndustrializationCost => OutpostRules.IndustrializationCost;
 
@@ -72,7 +84,7 @@ namespace Asterforge.Game.Simulation.Progression
 
 		public void Advance(long elapsedSeconds)
 		{
-			productionSimulator.Advance(Resources, Machines, elapsedSeconds);
+			LastPowerStatus = productionSimulator.Advance(Resources, Machines, elapsedSeconds);
 		}
 
 		public OutpostSnapshot CaptureSnapshot(long savedAtUnixSeconds)
@@ -117,9 +129,9 @@ namespace Asterforge.Game.Simulation.Progression
 			}
 
 			var machineTypes = (MachineType[])Enum.GetValues(typeof(MachineType));
-			foreach (var machine in machineTypes)
+			for (var index = 0; index < snapshot.MachineCounts.Length; index++)
 			{
-				world.Machines.Set(machine, snapshot.MachineCounts[(int)machine]);
+				world.Machines.Set(machineTypes[index], snapshot.MachineCounts[index]);
 			}
 
 			world.IsIndustrialized = snapshot.IsIndustrialized;
@@ -152,7 +164,7 @@ namespace Asterforge.Game.Simulation.Progression
 				throw new ArgumentNullException(nameof(snapshot));
 			}
 
-			if (snapshot.Version != OutpostSnapshot.CurrentVersion)
+			if (snapshot.Version != OutpostSnapshot.VersionWithoutPower && snapshot.Version != OutpostSnapshot.CurrentVersion)
 			{
 				throw new InvalidOperationException($"Unsupported Outpost snapshot version {snapshot.Version}.");
 			}
@@ -169,7 +181,8 @@ namespace Asterforge.Game.Simulation.Progression
 			}
 
 			var machineCount = Enum.GetValues(typeof(MachineType)).Length;
-			if (snapshot.MachineCounts == null || snapshot.MachineCounts.Length != machineCount)
+			var expectedMachineCount = snapshot.Version == OutpostSnapshot.VersionWithoutPower ? machineCount - 1 : machineCount;
+			if (snapshot.MachineCounts == null || snapshot.MachineCounts.Length != expectedMachineCount)
 			{
 				throw new InvalidOperationException("Outpost snapshot machine data does not match this game version.");
 			}
@@ -213,7 +226,6 @@ namespace Asterforge.Game.Simulation.Progression
 				{
 					throw new InvalidOperationException("Resource balances changed while applying an Outpost action.");
 				}
-			}
 		}
 	}
 }

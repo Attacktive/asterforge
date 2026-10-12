@@ -5,7 +5,8 @@ namespace Asterforge.Game.Persistence
 	[Serializable]
 	public sealed class OutpostSnapshot
 	{
-		public const int CurrentVersion = 1;
+		public const int VersionWithoutPower = 1;
+		public const int CurrentVersion = 2;
 
 		public int Version = CurrentVersion;
 		public long SavedAtUnixSeconds;
