@@ -214,6 +214,7 @@ namespace Asterforge.Game.Simulation.Progression
 				{
 					throw new InvalidOperationException("Resource balances changed while applying an Outpost action.");
 				}
+			}
 		}
 	}
 }
