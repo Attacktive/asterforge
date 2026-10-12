@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Asterforge.Game.Simulation.Production;
 using Asterforge.Game.Simulation.Resources;
 using NUnit.Framework;
@@ -67,6 +68,93 @@ namespace Asterforge.Game.Tests.Production
 		public void Advance_WhenElapsedTimeIsNegative_Throws()
 		{
 			Assert.Throws<ArgumentOutOfRangeException>(() => simulator.Advance(resources, machines, -1));
+		}
+
+		[Test]
+		public void Advance_WithFueledGenerator_PowersSteelProduction()
+		{
+			var poweredSimulator = CreatePoweredSimulator(OutpostRecipes.All);
+			resources.Add(ResourceType.Metal, 40);
+			resources.Add(ResourceType.Coal, 40);
+			machines.Add(MachineType.CoalGenerator);
+			machines.Add(MachineType.Steelworks);
+
+			var status = poweredSimulator.Advance(resources, machines, 10);
+
+			Assert.That(resources.Get(ResourceType.Metal), Is.Zero);
+			Assert.That(resources.Get(ResourceType.Coal), Is.EqualTo(10));
+			Assert.That(resources.Get(ResourceType.Steel), Is.EqualTo(10));
+			Assert.That(status.Capacity, Is.EqualTo(4));
+			Assert.That(status.Demand, Is.EqualTo(4));
+			Assert.That(status.FuelConsumed, Is.EqualTo(10));
+			Assert.That(status.IsBrownout, Is.False);
+		}
+
+		[Test]
+		public void Advance_WhenPowerDemandExceedsSupply_ScalesPoweredProductionProportionally()
+		{
+			var poweredSimulator = CreatePoweredSimulator(OutpostRecipes.All);
+			resources.Add(ResourceType.Metal, 80);
+			resources.Add(ResourceType.Coal, 60);
+			machines.Add(MachineType.CoalGenerator);
+			machines.Add(MachineType.Steelworks, 2);
+
+			var status = poweredSimulator.Advance(resources, machines, 10);
+
+			Assert.That(resources.Get(ResourceType.Metal), Is.EqualTo(40));
+			Assert.That(resources.Get(ResourceType.Coal), Is.EqualTo(30));
+			Assert.That(resources.Get(ResourceType.Steel), Is.EqualTo(10));
+			Assert.That(status.Capacity, Is.EqualTo(4));
+			Assert.That(status.Demand, Is.EqualTo(8));
+			Assert.That(status.IsBrownout, Is.True);
+		}
+
+		[Test]
+		public void Advance_WhenGeneratorHasNoFuel_DoesNotRunPoweredProduction()
+		{
+			var poweredSimulator = CreatePoweredSimulator(OutpostRecipes.All);
+			resources.Add(ResourceType.Metal, 40);
+			machines.Add(MachineType.CoalGenerator);
+			machines.Add(MachineType.Steelworks);
+
+			var status = poweredSimulator.Advance(resources, machines, 10);
+
+			Assert.That(resources.Get(ResourceType.Metal), Is.EqualTo(40));
+			Assert.That(resources.Get(ResourceType.Steel), Is.Zero);
+			Assert.That(status.FuelConsumed, Is.Zero);
+			Assert.That(status.IsBrownout, Is.True);
+		}
+
+		[Test]
+		public void Advance_WithCoalGeneration_IsIndependentOfRecipeIterationOrder()
+		{
+			var reversedRecipes = new List<ProductionRecipe>();
+			for (var index = OutpostRecipes.All.Count - 1; index >= 0; index--)
+			{
+				reversedRecipes.Add(OutpostRecipes.All[index]);
+			}
+
+			var poweredSimulator = CreatePoweredSimulator(reversedRecipes);
+			resources.Add(ResourceType.Metal, 40);
+			machines.Add(MachineType.CoalMine, 3);
+			machines.Add(MachineType.CoalGenerator);
+			machines.Add(MachineType.Steelworks);
+
+			poweredSimulator.Advance(resources, machines, 10);
+
+			Assert.That(resources.Get(ResourceType.Coal), Is.Zero);
+			Assert.That(resources.Get(ResourceType.Steel), Is.EqualTo(10));
+		}
+
+		private static ProductionSimulator CreatePoweredSimulator(IReadOnlyList<ProductionRecipe> recipes)
+		{
+			var powerGrid = new PowerGrid(
+				MachineType.CoalGenerator,
+				4,
+				new ResourceQuantity(ResourceType.Coal, 1)
+			);
+
+			return new ProductionSimulator(recipes, powerGrid);
 		}
 	}
 }

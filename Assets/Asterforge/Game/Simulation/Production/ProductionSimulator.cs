@@ -7,13 +7,20 @@ namespace Asterforge.Game.Simulation.Production
 	public sealed class ProductionSimulator
 	{
 		private readonly IReadOnlyList<ProductionRecipe> recipes;
+		private readonly PowerGrid powerGrid;
 
 		public ProductionSimulator(IReadOnlyList<ProductionRecipe> recipes)
+			: this(recipes, null)
 		{
-			this.recipes = recipes ?? throw new ArgumentNullException(nameof(recipes));
 		}
 
-		public void Advance(ResourceLedger resources, MachineFleet machines, long elapsedSeconds)
+		public ProductionSimulator(IReadOnlyList<ProductionRecipe> recipes, PowerGrid powerGrid)
+		{
+			this.recipes = recipes ?? throw new ArgumentNullException(nameof(recipes));
+			this.powerGrid = powerGrid;
+		}
+
+		public PowerStatus Advance(ResourceLedger resources, MachineFleet machines, long elapsedSeconds)
 		{
 			if (resources == null)
 			{
@@ -30,24 +37,73 @@ namespace Asterforge.Game.Simulation.Production
 				throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), elapsedSeconds, "Elapsed time cannot be negative.");
 			}
 
+			if (powerGrid == null)
+			{
+				foreach (var recipe in recipes)
+				{
+					ProcessRecipe(resources, machines, recipe, elapsedSeconds);
+				}
+
+				return default;
+			}
+
 			foreach (var recipe in recipes)
 			{
-				var machineCount = machines.Get(recipe.Machine);
-				if (machineCount == 0 || elapsedSeconds == 0)
+				if (recipe.PowerDemand == 0)
 				{
-					continue;
+					ProcessRecipe(resources, machines, recipe, elapsedSeconds);
 				}
-
-				var desiredRuns = checked((long)machineCount * elapsedSeconds);
-				var actualRuns = GetAffordableRuns(resources, recipe, desiredRuns);
-				if (actualRuns == 0)
-				{
-					continue;
-				}
-
-				ConsumeInputs(resources, recipe, actualRuns);
-				resources.Add(recipe.Output.Resource, checked(recipe.Output.Amount * actualRuns));
 			}
+
+			var powerStatus = powerGrid.Supply(resources, machines, recipes, elapsedSeconds);
+			if (powerStatus.DemandedCapacitySeconds == 0)
+			{
+				return powerStatus;
+			}
+
+			foreach (var recipe in recipes)
+			{
+				if (recipe.PowerDemand == 0)
+				{
+					continue;
+				}
+
+				var machineCount = machines.Get(recipe.Machine);
+				var desiredRuns = checked((long)machineCount * elapsedSeconds);
+				var powerLimitedRuns = checked(desiredRuns * powerStatus.SuppliedCapacitySeconds) / powerStatus.DemandedCapacitySeconds;
+				ProcessRecipe(resources, recipe, powerLimitedRuns);
+			}
+
+			return powerStatus;
+		}
+
+		private static void ProcessRecipe(ResourceLedger resources, MachineFleet machines, ProductionRecipe recipe, long elapsedSeconds)
+		{
+			var machineCount = machines.Get(recipe.Machine);
+			if (machineCount == 0 || elapsedSeconds == 0)
+			{
+				return;
+			}
+
+			var desiredRuns = checked((long)machineCount * elapsedSeconds);
+			ProcessRecipe(resources, recipe, desiredRuns);
+		}
+
+		private static void ProcessRecipe(ResourceLedger resources, ProductionRecipe recipe, long desiredRuns)
+		{
+			if (desiredRuns == 0)
+			{
+				return;
+			}
+
+			var actualRuns = GetAffordableRuns(resources, recipe, desiredRuns);
+			if (actualRuns == 0)
+			{
+				return;
+			}
+
+			ConsumeInputs(resources, recipe, actualRuns);
+			resources.Add(recipe.Output.Resource, checked(recipe.Output.Amount * actualRuns));
 		}
 
 		private static long GetAffordableRuns(ResourceLedger resources, ProductionRecipe recipe, long desiredRuns)

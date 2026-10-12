@@ -75,6 +75,7 @@ namespace Asterforge.Game.Tests.Progression
 			Assert.That(world.IsIndustrialized, Is.True);
 			Assert.That(world.IsMachineUnlocked(MachineType.CoalMine), Is.True);
 			Assert.That(world.IsMachineUnlocked(MachineType.Steelworks), Is.True);
+			Assert.That(world.IsMachineUnlocked(MachineType.CoalGenerator), Is.True);
 			Assert.That(world.Resources.Get(ResourceType.Research), Is.EqualTo(25));
 		}
 

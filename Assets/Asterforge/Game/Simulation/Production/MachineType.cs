@@ -7,6 +7,7 @@ namespace Asterforge.Game.Simulation.Production
 		Assembler,
 		ResearchStation,
 		CoalMine,
-		Steelworks
+		Steelworks,
+		CoalGenerator
 	}
 }
