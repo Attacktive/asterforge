@@ -93,6 +93,19 @@ namespace Asterforge.Game.Tests.Progression
 		}
 
 		[Test]
+		public void PowerCapacity_WithUnfueledGenerator_DistinguishesInstalledAndFuelBackedCapacity()
+		{
+			world.Machines.Add(MachineType.CoalGenerator);
+
+			Assert.That(world.PowerCapacity, Is.EqualTo(4));
+			Assert.That(world.FuelBackedPowerCapacity, Is.Zero);
+
+			world.Resources.Add(ResourceType.Coal, 1);
+
+			Assert.That(world.FuelBackedPowerCapacity, Is.EqualTo(4));
+		}
+
+		[Test]
 		public void Advance_WithPurchasedExtractor_ProducesOre()
 		{
 			world.Resources.Add(ResourceType.Ore, 10);
@@ -110,13 +123,15 @@ namespace Asterforge.Game.Tests.Progression
 			world.Resources.Add(ResourceType.Coal, 20);
 			world.Machines.Add(MachineType.Steelworks);
 
+			Assert.That(world.PowerCapacity, Is.Zero);
+			Assert.That(world.FuelBackedPowerCapacity, Is.Zero);
+			Assert.That(world.PowerDemand, Is.EqualTo(4));
+
 			world.Advance(10);
 
 			Assert.That(world.Resources.Get(ResourceType.Steel), Is.Zero);
 			Assert.That(world.Resources.Get(ResourceType.Metal), Is.EqualTo(40));
 			Assert.That(world.Resources.Get(ResourceType.Coal), Is.EqualTo(20));
-			Assert.That(world.PowerCapacity, Is.Zero);
-			Assert.That(world.PowerDemand, Is.EqualTo(4));
 			Assert.That(world.LastPowerStatus.IsBrownout, Is.True);
 		}
 
@@ -128,13 +143,16 @@ namespace Asterforge.Game.Tests.Progression
 			world.Machines.Add(MachineType.CoalGenerator);
 			world.Machines.Add(MachineType.Steelworks);
 
+			Assert.That(world.PowerCapacity, Is.EqualTo(4));
+			Assert.That(world.FuelBackedPowerCapacity, Is.EqualTo(4));
+			Assert.That(world.PowerDemand, Is.EqualTo(4));
+
 			world.Advance(10);
 
 			Assert.That(world.Resources.Get(ResourceType.Steel), Is.EqualTo(10));
 			Assert.That(world.Resources.Get(ResourceType.Metal), Is.Zero);
 			Assert.That(world.Resources.Get(ResourceType.Coal), Is.Zero);
-			Assert.That(world.PowerCapacity, Is.EqualTo(4));
-			Assert.That(world.PowerDemand, Is.EqualTo(4));
+			Assert.That(world.FuelBackedPowerCapacity, Is.Zero);
 			Assert.That(world.LastPowerStatus.SuppliedCapacitySeconds, Is.EqualTo(40));
 			Assert.That(world.LastPowerStatus.DemandedCapacitySeconds, Is.EqualTo(40));
 			Assert.That(world.LastPowerStatus.FuelConsumed, Is.EqualTo(10));
@@ -149,13 +167,15 @@ namespace Asterforge.Game.Tests.Progression
 			world.Machines.Add(MachineType.CoalGenerator);
 			world.Machines.Add(MachineType.Steelworks, 2);
 
+			Assert.That(world.PowerCapacity, Is.EqualTo(4));
+			Assert.That(world.FuelBackedPowerCapacity, Is.EqualTo(4));
+			Assert.That(world.PowerDemand, Is.EqualTo(8));
+
 			world.Advance(10);
 
 			Assert.That(world.Resources.Get(ResourceType.Steel), Is.EqualTo(10));
 			Assert.That(world.Resources.Get(ResourceType.Metal), Is.EqualTo(40));
 			Assert.That(world.Resources.Get(ResourceType.Coal), Is.EqualTo(30));
-			Assert.That(world.PowerCapacity, Is.EqualTo(4));
-			Assert.That(world.PowerDemand, Is.EqualTo(8));
 			Assert.That(world.LastPowerStatus.SuppliedCapacitySeconds, Is.EqualTo(40));
 			Assert.That(world.LastPowerStatus.DemandedCapacitySeconds, Is.EqualTo(80));
 			Assert.That(world.LastPowerStatus.IsBrownout, Is.True);

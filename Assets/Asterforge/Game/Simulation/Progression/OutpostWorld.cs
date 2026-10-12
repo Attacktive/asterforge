@@ -32,6 +32,8 @@ namespace Asterforge.Game.Simulation.Progression
 
 		public long PowerCapacity => powerGrid.GetCapacity(Machines);
 
+		public long FuelBackedPowerCapacity => powerGrid.GetFuelBackedCapacity(Resources, Machines);
+
 		public long PowerDemand => powerGrid.GetDemand(Machines, OutpostRecipes.All);
 
 		public PowerStatus LastPowerStatus { get; private set; }

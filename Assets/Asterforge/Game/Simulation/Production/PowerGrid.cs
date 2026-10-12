@@ -63,6 +63,25 @@ namespace Asterforge.Game.Simulation.Production
 			return checked((long)machines.Get(GeneratorMachine) * CapacityPerGenerator);
 		}
 
+		public long GetFuelBackedCapacity(ResourceLedger resources, MachineFleet machines)
+		{
+			if (resources == null)
+			{
+				throw new ArgumentNullException(nameof(resources));
+			}
+
+			if (machines == null)
+			{
+				throw new ArgumentNullException(nameof(machines));
+			}
+
+			var generatorCount = machines.Get(GeneratorMachine);
+			var affordableGeneratorCount = resources.Get(FuelPerGeneratorSecond.Resource) / FuelPerGeneratorSecond.Amount;
+			var activeGeneratorCount = Math.Min((long)generatorCount, affordableGeneratorCount);
+
+			return checked(activeGeneratorCount * CapacityPerGenerator);
+		}
+
 		public long GetDemand(MachineFleet machines, IReadOnlyList<ProductionRecipe> recipes)
 		{
 			if (machines == null)

@@ -453,8 +453,9 @@ namespace Asterforge.Unity.Presentation
 		private void DrawPowerTelemetry()
 		{
 			var capacity = world.PowerCapacity;
+			var fuelBackedCapacity = world.FuelBackedPowerCapacity;
 			var demand = world.PowerDemand;
-			var delivery = GetPowerDelivery();
+			var delivery = GetPowerDelivery(fuelBackedCapacity, demand);
 			var state = "STANDBY";
 			var stateColor = mutedColor;
 			var fillColor = greenColor;
@@ -466,19 +467,19 @@ namespace Asterforge.Unity.Presentation
 				fillColor = amberColor;
 				message = "Commission a Coal Generator before Steelworks can produce.";
 			}
-			else if (demand > 0 && delivery <= 0f)
+			else if (demand > 0 && fuelBackedCapacity == 0)
 			{
 				state = "FUEL STARVED";
 				stateColor = amberColor;
 				fillColor = amberColor;
-				message = "Generator capacity exists, but the grid delivered no power. Keep Coal available for generation.";
+				message = "Generator capacity exists, but the current Coal reserve cannot fuel it.";
 			}
 			else if (demand > 0 && delivery < 0.999f)
 			{
 				state = "BROWNOUT";
 				stateColor = amberColor;
 				fillColor = amberColor;
-				message = "Available power is throttling powered production proportionally.";
+				message = "Fuel-backed generation cannot meet current powered demand.";
 			}
 			else if (demand > 0)
 			{
@@ -495,33 +496,20 @@ namespace Asterforge.Unity.Presentation
 			stateStyle.normal.textColor = stateColor;
 			GUILayout.Label(state, stateStyle, GUILayout.Width(88f));
 			GUILayout.EndHorizontal();
-			GUILayout.Label($"CAPACITY {FormatAmount(capacity)}  //  DEMAND {FormatAmount(demand)}", bodyStyle);
+			GUILayout.Label($"CAPACITY {FormatAmount(capacity)}  //  FUELED {FormatAmount(fuelBackedCapacity)}  //  DEMAND {FormatAmount(demand)}", bodyStyle);
 			DrawProgressBar(delivery, fillColor);
-			GUILayout.Label($"DELIVERED {(delivery * 100f):0.#}%  //  {message}", mutedStyle);
+			GUILayout.Label($"AVAILABLE {(delivery * 100f):0.#}%  //  {message}", mutedStyle);
 			GUILayout.EndVertical();
 		}
 
-		private float GetPowerDelivery()
+		private static float GetPowerDelivery(long fuelBackedCapacity, long demand)
 		{
-			var demand = world.PowerDemand;
 			if (demand == 0)
 			{
 				return 1f;
 			}
 
-			var powerStatus = world.LastPowerStatus;
-			if (powerStatus.DemandedCapacitySeconds > 0)
-			{
-				return Mathf.Clamp01((float)(powerStatus.SuppliedCapacitySeconds / (double)powerStatus.DemandedCapacitySeconds));
-			}
-
-			var capacity = world.PowerCapacity;
-			if (capacity == 0)
-			{
-				return 0f;
-			}
-
-			return Mathf.Clamp01((float)(capacity / (double)demand));
+			return Mathf.Clamp01((float)(fuelBackedCapacity / (double)demand));
 		}
 
 		private void DrawMachine(MachineType machine)
@@ -642,7 +630,7 @@ namespace Asterforge.Unity.Presentation
 			{
 				message = "Steelworks commissioned, but production requires a Coal Generator.";
 			}
-			else if (steelworks > 0 && world.LastPowerStatus.DemandedCapacitySeconds > 0 && world.LastPowerStatus.IsBrownout)
+			else if (steelworks > 0 && world.FuelBackedPowerCapacity < world.PowerDemand)
 			{
 				message = "Steel capacity is power-limited. Add generation or restore Coal fuel before calling output sustained.";
 			}
