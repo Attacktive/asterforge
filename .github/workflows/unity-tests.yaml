@@ -46,7 +46,6 @@ jobs:
         with:
           unityVersion: '6000.6.5f1'
           testMode: 'editmode'
-          coverageEnabled: false
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           checkName: 'Unity EditMode tests'
 
