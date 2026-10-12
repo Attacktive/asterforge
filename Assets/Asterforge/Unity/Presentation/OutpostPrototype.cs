@@ -34,6 +34,7 @@ namespace Asterforge.Unity.Presentation
 		private static readonly MachineType[] industryMachines =
 		{
 			MachineType.CoalMine,
+			MachineType.CoalGenerator,
 			MachineType.Steelworks
 		};
 
@@ -86,11 +87,12 @@ namespace Asterforge.Unity.Presentation
 
 		private void Awake()
 		{
-			world = new OutpostWorld();
+			EnsureWorld();
 		}
 
 		private void Update()
 		{
+			EnsureWorld();
 			elapsedSimulationSeconds += Time.unscaledDeltaTime;
 			var wholeSeconds = (long)elapsedSimulationSeconds;
 			if (wholeSeconds <= 0)
@@ -104,6 +106,7 @@ namespace Asterforge.Unity.Presentation
 
 		private void OnGUI()
 		{
+			EnsureWorld();
 			EnsureStyles();
 			DrawBackground();
 
@@ -213,10 +216,10 @@ namespace Asterforge.Unity.Presentation
 
 		private void DrawFactory(float width, float floor)
 		{
-			var machineSlots = 4;
+			var machineSlots = outpostMachines.Length;
 			if (world.IsIndustrialized)
 			{
-				machineSlots = 6;
+				machineSlots += industryMachines.Length;
 			}
 
 			var spacing = width / (machineSlots + 1f);
@@ -256,6 +259,10 @@ namespace Asterforge.Unity.Presentation
 			{
 				height = 70f;
 			}
+			else if (machine == MachineType.CoalGenerator)
+			{
+				height = 62f;
+			}
 
 			var body = new Rect(centerX - width * 0.5f, floor - height, width, height);
 			DrawRect(body, bodyColor);
@@ -287,6 +294,13 @@ namespace Asterforge.Unity.Presentation
 			{
 				DrawRect(new Rect(centerX - 2f, body.y - 30f, 4f, 30f), trimColor);
 				DrawRect(new Rect(centerX - 18f, body.y - 25f, 36f, 3f), trimColor);
+			}
+			else if (machine == MachineType.CoalGenerator)
+			{
+				DrawRect(new Rect(centerX - 2f, body.y - 22f, 4f, 22f), trimColor);
+				DrawRect(new Rect(centerX - 19f, body.y - 20f, 38f, 3f), trimColor);
+				DrawRect(new Rect(centerX - 16f, body.y - 15f, 4f, 10f), trimColor);
+				DrawRect(new Rect(centerX + 12f, body.y - 15f, 4f, 10f), trimColor);
 			}
 			else if (machine == MachineType.Extractor)
 			{
@@ -379,6 +393,8 @@ namespace Asterforge.Unity.Presentation
 			{
 				GUILayout.Space(6f);
 				DrawResources(industryResources);
+				GUILayout.Space(8f);
+				DrawPowerTelemetry();
 			}
 
 			GUILayout.Space(12f);
@@ -432,6 +448,80 @@ namespace Asterforge.Unity.Presentation
 			}
 
 			GUILayout.EndHorizontal();
+		}
+
+		private void DrawPowerTelemetry()
+		{
+			var capacity = world.PowerCapacity;
+			var demand = world.PowerDemand;
+			var delivery = GetPowerDelivery();
+			var state = "STANDBY";
+			var stateColor = mutedColor;
+			var fillColor = greenColor;
+			var message = "No powered facilities are drawing from the grid.";
+			if (demand > 0 && capacity == 0)
+			{
+				state = "OFFLINE";
+				stateColor = amberColor;
+				fillColor = amberColor;
+				message = "Commission a Coal Generator before Steelworks can produce.";
+			}
+			else if (demand > 0 && delivery <= 0f)
+			{
+				state = "FUEL STARVED";
+				stateColor = amberColor;
+				fillColor = amberColor;
+				message = "Generator capacity exists, but the grid delivered no power. Keep Coal available for generation.";
+			}
+			else if (demand > 0 && delivery < 0.999f)
+			{
+				state = "BROWNOUT";
+				stateColor = amberColor;
+				fillColor = amberColor;
+				message = "Available power is throttling powered production proportionally.";
+			}
+			else if (demand > 0)
+			{
+				state = "NOMINAL";
+				stateColor = greenColor;
+				message = "Grid nominal. Coal Generators consume fuel only while supplying powered demand.";
+			}
+
+			GUILayout.BeginVertical(machineCardStyle);
+			GUILayout.BeginHorizontal();
+			GUILayout.Label("POWER GRID", machineTitleStyle);
+			GUILayout.FlexibleSpace();
+			var stateStyle = new GUIStyle(eyebrowStyle);
+			stateStyle.normal.textColor = stateColor;
+			GUILayout.Label(state, stateStyle, GUILayout.Width(88f));
+			GUILayout.EndHorizontal();
+			GUILayout.Label($"CAPACITY {FormatAmount(capacity)}  //  DEMAND {FormatAmount(demand)}", bodyStyle);
+			DrawProgressBar(delivery, fillColor);
+			GUILayout.Label($"DELIVERED {(delivery * 100f):0.#}%  //  {message}", mutedStyle);
+			GUILayout.EndVertical();
+		}
+
+		private float GetPowerDelivery()
+		{
+			var demand = world.PowerDemand;
+			if (demand == 0)
+			{
+				return 1f;
+			}
+
+			var powerStatus = world.LastPowerStatus;
+			if (powerStatus.DemandedCapacitySeconds > 0)
+			{
+				return Mathf.Clamp01((float)(powerStatus.SuppliedCapacitySeconds / (double)powerStatus.DemandedCapacitySeconds));
+			}
+
+			var capacity = world.PowerCapacity;
+			if (capacity == 0)
+			{
+				return 0f;
+			}
+
+			return Mathf.Clamp01((float)(capacity / (double)demand));
 		}
 
 		private void DrawMachine(MachineType machine)
@@ -503,7 +593,7 @@ namespace Asterforge.Unity.Presentation
 			GUILayout.Label("INDUSTRIALIZATION", machineTitleStyle);
 			if (world.IsIndustrialized)
 			{
-				GUILayout.Label("BREAKTHROUGH COMPLETE  //  COAL + STEEL ONLINE", bodyStyle);
+				GUILayout.Label("BREAKTHROUGH COMPLETE  //  COAL + POWER + STEEL ONLINE", bodyStyle);
 				DrawProgressBar(1f, greenColor);
 				GUILayout.EndVertical();
 
@@ -548,9 +638,17 @@ namespace Asterforge.Unity.Presentation
 			DrawProgressBar(progress, greenColor);
 
 			var message = "Commission a Steelworks to establish steel production.";
-			if (steelworks > 0)
+			if (steelworks > 0 && world.PowerCapacity == 0)
 			{
-				message = "Steel capacity established. Keep Metal and Coal supplied to sustain output.";
+				message = "Steelworks commissioned, but production requires a Coal Generator.";
+			}
+			else if (steelworks > 0 && world.LastPowerStatus.DemandedCapacitySeconds > 0 && world.LastPowerStatus.IsBrownout)
+			{
+				message = "Steel capacity is power-limited. Add generation or restore Coal fuel before calling output sustained.";
+			}
+			else if (steelworks > 0)
+			{
+				message = "Steel capacity established. Keep Metal, Coal, and grid power supplied to sustain output.";
 			}
 
 			GUILayout.Label(message, mutedStyle);
@@ -625,6 +723,7 @@ namespace Asterforge.Unity.Presentation
 				MachineType.Assembler => "Assembler",
 				MachineType.ResearchStation => "Research Station",
 				MachineType.CoalMine => "Coal Mine",
+				MachineType.CoalGenerator => "Coal Generator",
 				MachineType.Steelworks => "Steelworks",
 				_ => machine.ToString()
 			};
@@ -641,6 +740,7 @@ namespace Asterforge.Unity.Presentation
 				MachineType.Assembler => "ASM",
 				MachineType.ResearchStation => "R&D",
 				MachineType.CoalMine => "COAL",
+				MachineType.CoalGenerator => "GEN",
 				MachineType.Steelworks => "STEEL",
 				_ => "UNIT"
 			};
@@ -657,7 +757,8 @@ namespace Asterforge.Unity.Presentation
 				MachineType.Assembler => "3 Metal -> 1 Component/s",
 				MachineType.ResearchStation => "2 Components -> 1 Research/s",
 				MachineType.CoalMine => "+1 Coal/s",
-				MachineType.Steelworks => "4 Metal + 2 Coal -> 1 Steel/s",
+				MachineType.CoalGenerator => "1 Coal/s while loaded -> 4 Power",
+				MachineType.Steelworks => "4 Metal + 2 Coal + 4 Power -> 1 Steel/s",
 				_ => string.Empty
 			};
 
@@ -673,6 +774,7 @@ namespace Asterforge.Unity.Presentation
 				MachineType.Assembler => new Color(0.83f, 0.68f, 0.27f),
 				MachineType.ResearchStation => cyanColor,
 				MachineType.CoalMine => new Color(0.56f, 0.59f, 0.60f),
+				MachineType.CoalGenerator => new Color(0.95f, 0.72f, 0.22f),
 				MachineType.Steelworks => new Color(0.73f, 0.82f, 0.88f),
 				_ => textColor
 			};
@@ -702,6 +804,17 @@ namespace Asterforge.Unity.Presentation
 			GUI.color = color;
 			GUI.DrawTexture(rect, Texture2D.whiteTexture);
 			GUI.color = previousColor;
+		}
+
+		private void EnsureWorld()
+		{
+			if (world != null)
+			{
+				return;
+			}
+
+			world = new OutpostWorld();
+			elapsedSimulationSeconds = 0f;
 		}
 
 		private void EnsureStyles()
