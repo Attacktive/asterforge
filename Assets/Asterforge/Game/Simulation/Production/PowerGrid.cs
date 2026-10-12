@@ -43,6 +43,11 @@ namespace Asterforge.Game.Simulation.Production
 				throw new ArgumentOutOfRangeException(nameof(capacityPerGenerator), capacityPerGenerator, "Generator capacity must be positive.");
 			}
 
+			if (fuelPerGeneratorSecond.Amount <= 0)
+			{
+				throw new ArgumentOutOfRangeException(nameof(fuelPerGeneratorSecond), fuelPerGeneratorSecond.Amount, "Generator fuel quantity must be positive.");
+			}
+
 			GeneratorMachine = generatorMachine;
 			CapacityPerGenerator = capacityPerGenerator;
 			FuelPerGeneratorSecond = fuelPerGeneratorSecond;
