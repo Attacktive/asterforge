@@ -1,17 +1,22 @@
 name: 'Dependabot Auto-Merge'
+
 on:
-  pull_request:
+  pull_request_target:
     types: ['opened', 'reopened', 'synchronize', 'ready_for_review']
+  workflow_run:
+    workflows: ['Unity tests']
+    types: ['completed']
+
 permissions:
   contents: 'write'
   pull-requests: 'write'
+
 jobs:
-  auto-merge:
+  approve:
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: 'ubuntu-latest'
-    if: github.actor == 'dependabot[bot]'
     steps:
       - name: 'Fetch Dependabot metadata'
-        id: 'metadata'
         uses: 'dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -21,14 +26,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-      - name: 'Enable Auto-Merge (Rebase)'
-        run: 'gh pr merge "$PR_URL" --auto --rebase'
+
+  merge:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Merge tested Dependabot PR'
+        run: |
+          if [ -z "$PR_NUMBER" ]; then
+            exit 0
+          fi
+
+          AUTHOR="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.user.login')"
+          if [ "$AUTHOR" != 'dependabot[bot]' ]; then
+            exit 0
+          fi
+
+          gh pr merge "$PR_NUMBER" --rebase --match-head-commit "$TESTED_HEAD_SHA" --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-      - name: 'Delete branch when merged'
-        if: 'github.event.pull_request.merged == true'
-        run: 'gh api -X DELETE "$URL_TO_BRANCH"'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          URL_TO_BRANCH: repos/${{ github.repository }}/git/refs/heads/${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          TESTED_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
