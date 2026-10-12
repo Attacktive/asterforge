@@ -44,7 +44,7 @@ namespace Asterforge.Game.Simulation.Progression
 					return currentCapacity;
 				}
 
-				var latestCapacity = (long)Math.Ceiling(status.FuelBackedCapacitySeconds * demand / (double)status.DemandedCapacitySeconds);
+				var latestCapacity = (long)Math.Ceiling(status.FuelBackedCapacitySeconds / (double)status.DemandedCapacitySeconds * demand);
 
 				return Math.Min(PowerCapacity, latestCapacity);
 			}
