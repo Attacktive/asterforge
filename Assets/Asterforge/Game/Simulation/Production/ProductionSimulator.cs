@@ -66,16 +66,37 @@ namespace Asterforge.Game.Simulation.Production
 				}
 			}
 
+			var fuelBackedCapacitySeconds = powerGrid.GetFuelBackedCapacitySeconds(
+				resources,
+				machines,
+				elapsedSeconds,
+				demandedCapacitySeconds
+			);
+
 			if (elapsedSeconds == 0 || demand == 0 || capacity == 0)
 			{
-				return new PowerStatus(capacity, demand, 0, demandedCapacitySeconds, 0);
+				return new PowerStatus(
+					capacity,
+					demand,
+					fuelBackedCapacitySeconds,
+					0,
+					demandedCapacitySeconds,
+					0
+				);
 			}
 
 			var maximumRatioUnits = GetMaximumPowerRatioUnits(capacity, demand);
 			var plan = FindBestPowerPlan(resources, machines, elapsedSeconds, demand, demandedCapacitySeconds, maximumRatioUnits);
 			ApplyPowerPlan(resources, plan);
 
-			return new PowerStatus(capacity, demand, plan.SuppliedCapacitySeconds, demandedCapacitySeconds, plan.FuelConsumed);
+			return new PowerStatus(
+				capacity,
+				demand,
+				fuelBackedCapacitySeconds,
+				plan.SuppliedCapacitySeconds,
+				demandedCapacitySeconds,
+				plan.FuelConsumed
+			);
 		}
 
 		private PowerPlan FindBestPowerPlan(ResourceLedger resources, MachineFleet machines, long elapsedSeconds, long demand, long demandedCapacitySeconds, long maximumRatioUnits)

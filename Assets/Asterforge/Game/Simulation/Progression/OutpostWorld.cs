@@ -32,7 +32,23 @@ namespace Asterforge.Game.Simulation.Progression
 
 		public long PowerCapacity => powerGrid.GetCapacity(Machines);
 
-		public long FuelBackedPowerCapacity => powerGrid.GetFuelBackedCapacity(Resources, Machines);
+		public long FuelBackedPowerCapacity
+		{
+			get
+			{
+				var currentCapacity = powerGrid.GetFuelBackedCapacity(Resources, Machines);
+				var demand = PowerDemand;
+				var status = LastPowerStatus;
+				if (demand == 0 || status.DemandedCapacitySeconds == 0 || status.Capacity != PowerCapacity || status.Demand != demand)
+				{
+					return currentCapacity;
+				}
+
+				var latestCapacity = (long)Math.Ceiling(status.FuelBackedCapacitySeconds * demand / (double)status.DemandedCapacitySeconds);
+
+				return Math.Min(PowerCapacity, latestCapacity);
+			}
+		}
 
 		public long PowerDemand => powerGrid.GetDemand(Machines, OutpostRecipes.All);
 

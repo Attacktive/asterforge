@@ -132,6 +132,7 @@ namespace Asterforge.Game.Tests.Progression
 			Assert.That(world.Resources.Get(ResourceType.Steel), Is.Zero);
 			Assert.That(world.Resources.Get(ResourceType.Metal), Is.EqualTo(40));
 			Assert.That(world.Resources.Get(ResourceType.Coal), Is.EqualTo(20));
+			Assert.That(world.LastPowerStatus.FuelBackedCapacitySeconds, Is.Zero);
 			Assert.That(world.LastPowerStatus.IsBrownout, Is.True);
 		}
 
@@ -152,7 +153,8 @@ namespace Asterforge.Game.Tests.Progression
 			Assert.That(world.Resources.Get(ResourceType.Steel), Is.EqualTo(10));
 			Assert.That(world.Resources.Get(ResourceType.Metal), Is.Zero);
 			Assert.That(world.Resources.Get(ResourceType.Coal), Is.Zero);
-			Assert.That(world.FuelBackedPowerCapacity, Is.Zero);
+			Assert.That(world.FuelBackedPowerCapacity, Is.EqualTo(4));
+			Assert.That(world.LastPowerStatus.FuelBackedCapacitySeconds, Is.EqualTo(40));
 			Assert.That(world.LastPowerStatus.SuppliedCapacitySeconds, Is.EqualTo(40));
 			Assert.That(world.LastPowerStatus.DemandedCapacitySeconds, Is.EqualTo(40));
 			Assert.That(world.LastPowerStatus.FuelConsumed, Is.EqualTo(10));
@@ -176,9 +178,26 @@ namespace Asterforge.Game.Tests.Progression
 			Assert.That(world.Resources.Get(ResourceType.Steel), Is.EqualTo(10));
 			Assert.That(world.Resources.Get(ResourceType.Metal), Is.EqualTo(40));
 			Assert.That(world.Resources.Get(ResourceType.Coal), Is.EqualTo(30));
+			Assert.That(world.LastPowerStatus.FuelBackedCapacitySeconds, Is.EqualTo(40));
 			Assert.That(world.LastPowerStatus.SuppliedCapacitySeconds, Is.EqualTo(40));
 			Assert.That(world.LastPowerStatus.DemandedCapacitySeconds, Is.EqualTo(80));
 			Assert.That(world.LastPowerStatus.IsBrownout, Is.True);
+		}
+
+		[Test]
+		public void Advance_WhenCoalMineOutputIsFullyConsumed_StillReportsFueledGrid()
+		{
+			world.Resources.Add(ResourceType.Metal, 40);
+			world.Machines.Add(MachineType.CoalMine, 3);
+			world.Machines.Add(MachineType.CoalGenerator);
+			world.Machines.Add(MachineType.Steelworks);
+
+			world.Advance(10);
+
+			Assert.That(world.Resources.Get(ResourceType.Coal), Is.Zero);
+			Assert.That(world.Resources.Get(ResourceType.Steel), Is.EqualTo(10));
+			Assert.That(world.FuelBackedPowerCapacity, Is.EqualTo(4));
+			Assert.That(world.LastPowerStatus.FuelBackedCapacitySeconds, Is.EqualTo(40));
 		}
 	}
 }

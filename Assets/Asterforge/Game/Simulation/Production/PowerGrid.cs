@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Asterforge.Game.Simulation.Resources;
 
 namespace Asterforge.Game.Simulation.Production
@@ -10,6 +11,8 @@ namespace Asterforge.Game.Simulation.Production
 
 		public long Demand { get; }
 
+		public long FuelBackedCapacitySeconds { get; }
+
 		public long SuppliedCapacitySeconds { get; }
 
 		public long DemandedCapacitySeconds { get; }
@@ -18,10 +21,11 @@ namespace Asterforge.Game.Simulation.Production
 
 		public bool IsBrownout => SuppliedCapacitySeconds < DemandedCapacitySeconds;
 
-		public PowerStatus(long capacity, long demand, long suppliedCapacitySeconds, long demandedCapacitySeconds, long fuelConsumed)
+		public PowerStatus(long capacity, long demand, long fuelBackedCapacitySeconds, long suppliedCapacitySeconds, long demandedCapacitySeconds, long fuelConsumed)
 		{
 			Capacity = capacity;
 			Demand = demand;
+			FuelBackedCapacitySeconds = fuelBackedCapacitySeconds;
 			SuppliedCapacitySeconds = suppliedCapacitySeconds;
 			DemandedCapacitySeconds = demandedCapacitySeconds;
 			FuelConsumed = fuelConsumed;
@@ -80,6 +84,49 @@ namespace Asterforge.Game.Simulation.Production
 			var activeGeneratorCount = Math.Min((long)generatorCount, affordableGeneratorCount);
 
 			return checked(activeGeneratorCount * CapacityPerGenerator);
+		}
+
+		internal long GetFuelBackedCapacitySeconds(ResourceLedger resources, MachineFleet machines, long elapsedSeconds, long demandedCapacitySeconds)
+		{
+			if (resources == null)
+			{
+				throw new ArgumentNullException(nameof(resources));
+			}
+
+			if (machines == null)
+			{
+				throw new ArgumentNullException(nameof(machines));
+			}
+
+			if (elapsedSeconds < 0)
+			{
+				throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), elapsedSeconds, "Elapsed time cannot be negative.");
+			}
+
+			if (demandedCapacitySeconds < 0)
+			{
+				throw new ArgumentOutOfRangeException(nameof(demandedCapacitySeconds), demandedCapacitySeconds, "Demanded capacity-seconds cannot be negative.");
+			}
+
+			if (elapsedSeconds == 0 || demandedCapacitySeconds == 0)
+			{
+				return 0;
+			}
+
+			var maximumGeneratorSeconds = (BigInteger)machines.Get(GeneratorMachine) * elapsedSeconds;
+			var affordableGeneratorSeconds = resources.Get(FuelPerGeneratorSecond.Resource) / FuelPerGeneratorSecond.Amount;
+			var activeGeneratorSeconds = BigInteger.Min(maximumGeneratorSeconds, affordableGeneratorSeconds);
+			var fuelBackedCapacitySeconds = BigInteger.Min(
+				demandedCapacitySeconds,
+				activeGeneratorSeconds * CapacityPerGenerator
+			);
+
+			if (fuelBackedCapacitySeconds > long.MaxValue)
+			{
+				throw new OverflowException("Fuel-backed power capacity exceeds the supported range.");
+			}
+
+			return (long)fuelBackedCapacitySeconds;
 		}
 
 		public long GetDemand(MachineFleet machines, IReadOnlyList<ProductionRecipe> recipes)
