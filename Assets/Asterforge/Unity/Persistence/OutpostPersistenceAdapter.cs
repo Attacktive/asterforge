@@ -14,6 +14,7 @@ namespace Asterforge.Unity.Persistence
 		private OutpostPrototype prototype;
 		private float autosaveElapsedSeconds;
 		private string savePath;
+		private OutpostSnapshot pausedSnapshot;
 
 		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
 		private static void Bootstrap()
@@ -59,12 +60,24 @@ namespace Asterforge.Unity.Persistence
 		{
 			if (pauseStatus)
 			{
-				Save();
+				pausedSnapshot = CaptureSnapshot();
+				Save(pausedSnapshot);
+
+				return;
 			}
+
+			ResumeFromPause();
 		}
 
 		private void OnApplicationQuit()
 		{
+			if (pausedSnapshot != null)
+			{
+				Save(pausedSnapshot);
+
+				return;
+			}
+
 			Save();
 		}
 
@@ -96,16 +109,54 @@ namespace Asterforge.Unity.Persistence
 			}
 		}
 
-		private void Save()
+		private void ResumeFromPause()
 		{
-			if (prototype == null || prototype.Session == null || string.IsNullOrEmpty(savePath))
+			if (pausedSnapshot == null || prototype == null)
 			{
 				return;
 			}
 
 			try
 			{
-				var snapshot = prototype.Session.CaptureSnapshot(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+				var offlineSeconds = prototype.Restore(pausedSnapshot, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+				pausedSnapshot = null;
+
+				if (offlineSeconds > 0)
+				{
+					Debug.Log($"Asterforge applied {offlineSeconds:N0} seconds of suspended progress.");
+				}
+			}
+			catch (Exception exception)
+			{
+				Debug.LogWarning($"Asterforge could not apply progress accumulated while suspended. {exception.Message}");
+				pausedSnapshot = null;
+			}
+		}
+
+		private OutpostSnapshot CaptureSnapshot()
+		{
+			if (prototype == null || prototype.Session == null)
+			{
+				return null;
+			}
+
+			return prototype.Session.CaptureSnapshot(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+		}
+
+		private void Save()
+		{
+			Save(CaptureSnapshot());
+		}
+
+		private void Save(OutpostSnapshot snapshot)
+		{
+			if (snapshot == null || string.IsNullOrEmpty(savePath))
+			{
+				return;
+			}
+
+			try
+			{
 				var json = JsonUtility.ToJson(snapshot, true);
 				File.WriteAllText(savePath, json);
 			}
