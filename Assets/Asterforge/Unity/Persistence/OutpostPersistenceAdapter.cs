@@ -18,6 +18,7 @@ namespace Asterforge.Unity.Persistence
 		private FieldInfo worldField;
 		private float autosaveElapsedSeconds;
 		private string savePath;
+		private OutpostSnapshot pausedSnapshot;
 
 		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
 		private static void Bootstrap()
@@ -72,12 +73,24 @@ namespace Asterforge.Unity.Persistence
 		{
 			if (pauseStatus)
 			{
-				Save();
+				pausedSnapshot = CaptureSnapshot();
+				Save(pausedSnapshot);
+
+				return;
 			}
+
+			ResumeFromPause();
 		}
 
 		private void OnApplicationQuit()
 		{
+			if (pausedSnapshot != null)
+			{
+				Save(pausedSnapshot);
+
+				return;
+			}
+
 			Save();
 		}
 
@@ -112,23 +125,64 @@ namespace Asterforge.Unity.Persistence
 			}
 		}
 
-		private void Save()
+		private void ResumeFromPause()
 		{
-			if (prototype == null || worldField == null || string.IsNullOrEmpty(savePath))
+			if (pausedSnapshot == null || prototype == null || worldField == null)
 			{
 				return;
 			}
 
 			try
 			{
-				var world = worldField.GetValue(prototype) as OutpostWorld;
-				if (world == null)
-				{
-					return;
-				}
-
 				var nowUnixSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-				var snapshot = world.CaptureSnapshot(nowUnixSeconds);
+				var result = OutpostWorld.RestoreWithOfflineProgress(pausedSnapshot, nowUnixSeconds);
+				worldField.SetValue(prototype, result.World);
+				pausedSnapshot = null;
+
+				if (result.OfflineSeconds > 0)
+				{
+					Debug.Log($"Asterforge applied {result.OfflineSeconds:N0} seconds of suspended progress.");
+				}
+			}
+			catch (Exception exception)
+			{
+				Debug.LogWarning($"Asterforge could not apply progress accumulated while suspended. {exception.Message}");
+				pausedSnapshot = null;
+			}
+		}
+
+		private OutpostSnapshot CaptureSnapshot()
+		{
+			if (prototype == null || worldField == null)
+			{
+				return null;
+			}
+
+			var world = worldField.GetValue(prototype) as OutpostWorld;
+			if (world == null)
+			{
+				return null;
+			}
+
+			var nowUnixSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+			return world.CaptureSnapshot(nowUnixSeconds);
+		}
+
+		private void Save()
+		{
+			Save(CaptureSnapshot());
+		}
+
+		private void Save(OutpostSnapshot snapshot)
+		{
+			if (snapshot == null || string.IsNullOrEmpty(savePath))
+			{
+				return;
+			}
+
+			try
+			{
 				var json = JsonUtility.ToJson(snapshot, true);
 				File.WriteAllText(savePath, json);
 			}
