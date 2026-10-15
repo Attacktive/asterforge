@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Asterforge.Game.Persistence;
 using Asterforge.Game.Simulation.Production;
 using Asterforge.Game.Simulation.Resources;
@@ -207,6 +208,8 @@ namespace Asterforge.Game.Simulation.Progression
 				ResourceAmounts = resourceAmounts,
 				MachineCounts = machineCounts,
 				PoweredRunRemainders = productionSimulator.CapturePoweredRunRemainders(),
+				PoweredAllocationWeights = productionSimulator.CapturePoweredAllocationWeights(),
+				PoweredAllocationPhase = productionSimulator.CapturePoweredAllocationPhase(),
 				PowerFuelCreditUnits = productionSimulator.CaptureFuelCreditUnits(),
 				IsIndustrialized = IsIndustrialized
 			};
@@ -229,7 +232,12 @@ namespace Asterforge.Game.Simulation.Progression
 				world.Machines.Set(machine, snapshot.MachineCounts[(int)machine]);
 			}
 
-			world.productionSimulator.RestorePoweredState(snapshot.PoweredRunRemainders, snapshot.PowerFuelCreditUnits);
+			world.productionSimulator.RestorePoweredState(
+				snapshot.PoweredRunRemainders,
+				snapshot.PoweredAllocationWeights,
+				snapshot.PoweredAllocationPhase,
+				snapshot.PowerFuelCreditUnits
+			);
 			world.IsIndustrialized = snapshot.IsIndustrialized;
 
 			return world;
@@ -287,6 +295,12 @@ namespace Asterforge.Game.Simulation.Progression
 				throw new InvalidOperationException("Outpost snapshot powered production data does not match this game version.");
 			}
 
+			if (snapshot.PoweredAllocationWeights == null || snapshot.PoweredAllocationWeights.Length != machineCount)
+			{
+				throw new InvalidOperationException("Outpost snapshot powered allocation data does not match this game version.");
+			}
+
+			var totalAllocationWeight = BigInteger.Zero;
 			var machineTypes = (MachineType[])Enum.GetValues(typeof(MachineType));
 			foreach (var machine in machineTypes)
 			{
@@ -296,6 +310,44 @@ namespace Asterforge.Game.Simulation.Progression
 				{
 					throw new InvalidOperationException("Outpost snapshot contains invalid powered production progress.");
 				}
+
+				var allocationWeight = snapshot.PoweredAllocationWeights[(int)machine];
+				if (allocationWeight < 0)
+				{
+					throw new InvalidOperationException("Outpost snapshot contains a negative powered allocation weight.");
+				}
+
+				var powerDemand = GetPoweredPowerDemand(machine);
+				if (powerDemand == 0)
+				{
+					if (allocationWeight != 0)
+					{
+						throw new InvalidOperationException("Outpost snapshot assigns powered allocation weight to an unpowered machine.");
+					}
+				}
+				else if (allocationWeight % powerDemand != 0)
+				{
+					throw new InvalidOperationException("Outpost snapshot powered allocation weight does not align with machine demand.");
+				}
+
+				totalAllocationWeight += allocationWeight;
+			}
+
+			if (snapshot.PoweredAllocationPhase < 0)
+			{
+				throw new InvalidOperationException("Outpost snapshot contains a negative powered allocation phase.");
+			}
+
+			if (totalAllocationWeight == 0)
+			{
+				if (snapshot.PoweredAllocationPhase != 0)
+				{
+					throw new InvalidOperationException("Outpost snapshot powered allocation phase must be zero without allocation weight.");
+				}
+			}
+			else if (snapshot.PoweredAllocationPhase >= totalAllocationWeight)
+			{
+				throw new InvalidOperationException("Outpost snapshot powered allocation phase is outside its allocation cycle.");
 			}
 
 			if (snapshot.PowerFuelCreditUnits < 0 || snapshot.PowerFuelCreditUnits >= powerGrid.CapacityPerGenerator)
@@ -322,6 +374,17 @@ namespace Asterforge.Game.Simulation.Progression
 
 		private static int GetPoweredRunRemainderLimit(MachineType machine)
 		{
+			var powerDemand = GetPoweredPowerDemand(machine);
+			if (powerDemand > 0)
+			{
+				return powerDemand;
+			}
+
+			return 1;
+		}
+
+		private static int GetPoweredPowerDemand(MachineType machine)
+		{
 			foreach (var recipe in OutpostRecipes.All)
 			{
 				if (recipe.Machine == machine && recipe.PowerDemand > 0)
@@ -330,7 +393,7 @@ namespace Asterforge.Game.Simulation.Progression
 				}
 			}
 
-			return 1;
+			return 0;
 		}
 
 		private static ProductionRecipe GetRecipe(MachineType machine)

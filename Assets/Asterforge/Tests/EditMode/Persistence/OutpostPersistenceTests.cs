@@ -32,6 +32,27 @@ namespace Asterforge.Game.Tests.Persistence
 		}
 
 		[Test]
+		public void CaptureSnapshot_ThenRestore_PreservesPoweredAllocationCycleState()
+		{
+			var world = new OutpostWorld();
+			world.Resources.Add(ResourceType.Metal, 40);
+			world.Resources.Add(ResourceType.Coal, 40);
+			world.Machines.Add(MachineType.CoalGenerator);
+			world.Machines.Add(MachineType.Steelworks, 2);
+			world.Advance(1);
+
+			var snapshot = world.CaptureSnapshot(100);
+			var restoredSnapshot = OutpostWorld.Restore(snapshot).CaptureSnapshot(100);
+
+			Assert.That(snapshot.PoweredAllocationWeights[(int)MachineType.Steelworks], Is.EqualTo(8));
+			Assert.That(snapshot.PoweredAllocationPhase, Is.EqualTo(4));
+			Assert.That(restoredSnapshot.PoweredRunRemainders, Is.EqualTo(snapshot.PoweredRunRemainders));
+			Assert.That(restoredSnapshot.PoweredAllocationWeights, Is.EqualTo(snapshot.PoweredAllocationWeights));
+			Assert.That(restoredSnapshot.PoweredAllocationPhase, Is.EqualTo(snapshot.PoweredAllocationPhase));
+			Assert.That(restoredSnapshot.PowerFuelCreditUnits, Is.EqualTo(snapshot.PowerFuelCreditUnits));
+		}
+
+		[Test]
 		public void RestoreWithOfflineProgress_AdvancesWorldByElapsedSeconds()
 		{
 			var world = new OutpostWorld();

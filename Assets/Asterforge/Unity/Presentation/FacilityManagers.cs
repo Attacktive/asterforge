@@ -25,10 +25,10 @@ namespace Asterforge.Unity.Presentation
 		);
 
 		private static readonly FacilityManagerDefinition maraQuinn = new FacilityManagerDefinition(
-			MachineType.Assembler,
+			MachineType.CoalGenerator,
 			"Mara Quinn",
-			"Assembly Lead",
-			"Keeps production precise and efficient.",
+			"Power Systems Lead",
+			"Keeps the grid fueled and heavy industry running.",
 			"MQ",
 			"Managers/mara_quinn"
 		);
@@ -80,10 +80,10 @@ namespace Asterforge.Unity.Presentation
 			{
 				MachineType.Extractor => rheaVale,
 				MachineType.Smelter => tomaSato,
-				MachineType.Assembler => maraQuinn,
 				MachineType.ResearchStation => ivoMercer,
 				MachineType.CoalMine => nikaDrazic,
 				MachineType.Steelworks => eliasVoss,
+				MachineType.CoalGenerator => maraQuinn,
 				_ => throw new ArgumentOutOfRangeException(nameof(machine), machine, "Unknown facility manager assignment.")
 			};
 		}

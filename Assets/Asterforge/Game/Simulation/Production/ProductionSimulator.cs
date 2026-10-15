@@ -10,6 +10,8 @@ namespace Asterforge.Game.Simulation.Production
 		private readonly IReadOnlyList<ProductionRecipe> recipes;
 		private readonly PowerGrid powerGrid;
 		private readonly long[] poweredRunRemainders = new long[Enum.GetValues(typeof(MachineType)).Length];
+		private readonly long[] poweredAllocationWeights = new long[Enum.GetValues(typeof(MachineType)).Length];
+		private long poweredAllocationPhase;
 		private long fuelCreditUnits;
 
 		public ProductionSimulator(IReadOnlyList<ProductionRecipe> recipes)
@@ -28,16 +30,31 @@ namespace Asterforge.Game.Simulation.Production
 			return (long[])poweredRunRemainders.Clone();
 		}
 
+		public long[] CapturePoweredAllocationWeights()
+		{
+			return (long[])poweredAllocationWeights.Clone();
+		}
+
+		public long CapturePoweredAllocationPhase()
+		{
+			return poweredAllocationPhase;
+		}
+
 		public long CaptureFuelCreditUnits()
 		{
 			return fuelCreditUnits;
 		}
 
-		public void RestorePoweredState(long[] runRemainders, long restoredFuelCreditUnits)
+		public void RestorePoweredState(long[] runRemainders, long[] allocationWeights, long allocationPhase, long restoredFuelCreditUnits)
 		{
 			if (runRemainders == null)
 			{
 				throw new ArgumentNullException(nameof(runRemainders));
+			}
+
+			if (allocationWeights == null)
+			{
+				throw new ArgumentNullException(nameof(allocationWeights));
 			}
 
 			if (runRemainders.Length != poweredRunRemainders.Length)
@@ -45,6 +62,12 @@ namespace Asterforge.Game.Simulation.Production
 				throw new ArgumentException("Powered production remainder data does not match this game version.", nameof(runRemainders));
 			}
 
+			if (allocationWeights.Length != poweredAllocationWeights.Length)
+			{
+				throw new ArgumentException("Powered allocation weight data does not match this game version.", nameof(allocationWeights));
+			}
+
+			var totalAllocationWeight = BigInteger.Zero;
 			var machineTypes = (MachineType[])Enum.GetValues(typeof(MachineType));
 			foreach (var machine in machineTypes)
 			{
@@ -54,6 +77,44 @@ namespace Asterforge.Game.Simulation.Production
 				{
 					throw new ArgumentOutOfRangeException(nameof(runRemainders), remainder, "Powered production remainder is outside its machine's work boundary.");
 				}
+
+				var allocationWeight = allocationWeights[(int)machine];
+				if (allocationWeight < 0)
+				{
+					throw new ArgumentOutOfRangeException(nameof(allocationWeights), allocationWeight, "Powered allocation weight cannot be negative.");
+				}
+
+				var powerDemand = GetPowerDemand(machine);
+				if (powerDemand == 0)
+				{
+					if (allocationWeight != 0)
+					{
+						throw new ArgumentOutOfRangeException(nameof(allocationWeights), allocationWeight, "A machine without powered production cannot have allocation weight.");
+					}
+				}
+				else if (allocationWeight % powerDemand != 0)
+				{
+					throw new ArgumentOutOfRangeException(nameof(allocationWeights), allocationWeight, "Powered allocation weight does not align with its machine's power demand.");
+				}
+
+				totalAllocationWeight += allocationWeight;
+			}
+
+			if (allocationPhase < 0)
+			{
+				throw new ArgumentOutOfRangeException(nameof(allocationPhase), allocationPhase, "Powered allocation phase cannot be negative.");
+			}
+
+			if (totalAllocationWeight == 0)
+			{
+				if (allocationPhase != 0)
+				{
+					throw new ArgumentOutOfRangeException(nameof(allocationPhase), allocationPhase, "Powered allocation phase must be zero without allocation weight.");
+				}
+			}
+			else if (allocationPhase >= totalAllocationWeight)
+			{
+				throw new ArgumentOutOfRangeException(nameof(allocationPhase), allocationPhase, "Powered allocation phase must stay inside its allocation cycle.");
 			}
 
 			if (restoredFuelCreditUnits < 0)
@@ -63,6 +124,11 @@ namespace Asterforge.Game.Simulation.Production
 
 			if (powerGrid == null)
 			{
+				if (totalAllocationWeight != 0 || allocationPhase != 0)
+				{
+					throw new ArgumentOutOfRangeException(nameof(allocationWeights), allocationWeights, "A simulator without power cannot restore powered allocation state.");
+				}
+
 				if (restoredFuelCreditUnits != 0)
 				{
 					throw new ArgumentOutOfRangeException(nameof(restoredFuelCreditUnits), restoredFuelCreditUnits, "A simulator without power cannot restore fuel credit.");
@@ -74,6 +140,8 @@ namespace Asterforge.Game.Simulation.Production
 			}
 
 			Array.Copy(runRemainders, poweredRunRemainders, poweredRunRemainders.Length);
+			Array.Copy(allocationWeights, poweredAllocationWeights, poweredAllocationWeights.Length);
+			poweredAllocationPhase = allocationPhase;
 			fuelCreditUnits = restoredFuelCreditUnits;
 		}
 
@@ -167,19 +235,12 @@ namespace Asterforge.Game.Simulation.Production
 			var spend = new BigInteger[resourceTypes.Length];
 			var output = new BigInteger[resourceTypes.Length];
 			var remainders = (long[])poweredRunRemainders.Clone();
-			var remainingWork = (BigInteger)suppliedCapacitySeconds;
+			var allocationPlan = AllocatePoweredWork(machines, elapsedSeconds, suppliedCapacitySeconds);
 
-			foreach (var recipe in recipes)
+			foreach (var allocation in allocationPlan.Allocations)
 			{
-				if (recipe.PowerDemand == 0)
-				{
-					continue;
-				}
-
-				var machineCount = machines.Get(recipe.Machine);
-				var maximumRecipeWork = (BigInteger)machineCount * elapsedSeconds * recipe.PowerDemand;
-				var allocatedWork = BigInteger.Min(remainingWork, maximumRecipeWork);
-				var totalWork = allocatedWork + poweredRunRemainders[(int)recipe.Machine];
+				var recipe = allocation.Recipe;
+				var totalWork = allocation.Work + poweredRunRemainders[(int)recipe.Machine];
 				var runs = totalWork / recipe.PowerDemand;
 				if (runs > long.MaxValue)
 				{
@@ -193,12 +254,6 @@ namespace Asterforge.Game.Simulation.Production
 				}
 
 				output[(int)recipe.Output.Resource] += runs * recipe.Output.Amount;
-				remainingWork -= allocatedWork;
-			}
-
-			if (remainingWork != 0)
-			{
-				throw new InvalidOperationException("Powered work exceeds the demand available in this simulation interval.");
 			}
 
 			var generatorSeconds = BigInteger.Zero;
@@ -247,12 +302,143 @@ namespace Asterforge.Game.Simulation.Production
 
 			return new PowerPlan(
 				remainders,
+				allocationPlan.Phase,
+				allocationPlan.Weights,
 				resourceSpend,
 				resourceOutput,
 				ToLongChecked(fuelConsumed, "Generator fuel consumption exceeds the supported range."),
 				ToLongChecked(nextFuelCreditUnits, "Generator fuel credit exceeds the supported range."),
 				suppliedCapacitySeconds
 			);
+		}
+
+		private PoweredAllocationPlan AllocatePoweredWork(MachineFleet machines, long elapsedSeconds, long suppliedCapacitySeconds)
+		{
+			var allocations = new List<PoweredRecipeAllocation>();
+			var weights = new long[poweredAllocationWeights.Length];
+			var totalWeight = 0L;
+			foreach (var recipe in recipes)
+			{
+				if (recipe.PowerDemand == 0)
+				{
+					continue;
+				}
+
+				var machineCount = machines.Get(recipe.Machine);
+				if (machineCount == 0)
+				{
+					continue;
+				}
+
+				var weight = checked((long)machineCount * recipe.PowerDemand);
+				var maximumWork = (BigInteger)weight * elapsedSeconds;
+				weights[(int)recipe.Machine] = weight;
+				totalWeight = checked(totalWeight + weight);
+				allocations.Add(new PoweredRecipeAllocation(recipe, weight, maximumWork));
+			}
+
+			var totalPoweredWork = (BigInteger)totalWeight * elapsedSeconds;
+			if (suppliedCapacitySeconds < 0 || suppliedCapacitySeconds > totalPoweredWork)
+			{
+				throw new InvalidOperationException("Powered work exceeds the demand available in this simulation interval.");
+			}
+
+			var previousPhase = 0L;
+			if (HasSameAllocationWeights(weights))
+			{
+				previousPhase = poweredAllocationPhase;
+			}
+
+			if (suppliedCapacitySeconds == 0)
+			{
+				return new PoweredAllocationPlan(allocations, previousPhase, weights);
+			}
+
+			var combinedWork = (BigInteger)previousPhase + suppliedCapacitySeconds;
+			var fullCycles = combinedWork / totalWeight;
+			var nextPhase = (long)(combinedWork % totalWeight);
+			var previousCycleWork = ApportionPoweredWork(allocations, previousPhase, totalWeight);
+			var nextCycleWork = ApportionPoweredWork(allocations, nextPhase, totalWeight);
+
+			foreach (var allocation in allocations)
+			{
+				var machineIndex = (int)allocation.Recipe.Machine;
+				allocation.Work = fullCycles * allocation.Weight + nextCycleWork[machineIndex] - previousCycleWork[machineIndex];
+				if (allocation.Work < 0 || allocation.Work > allocation.MaximumWork)
+				{
+					throw new InvalidOperationException("Proportional powered work allocation crossed a machine work boundary.");
+				}
+			}
+
+			return new PoweredAllocationPlan(allocations, nextPhase, weights);
+		}
+
+		private static long[] ApportionPoweredWork(IReadOnlyList<PoweredRecipeAllocation> allocations, long suppliedCapacitySeconds, long totalWeight)
+		{
+			var work = new long[Enum.GetValues(typeof(MachineType)).Length];
+			var allocatedWork = 0L;
+			foreach (var allocation in allocations)
+			{
+				var machineIndex = (int)allocation.Recipe.Machine;
+				var baseWork = ToLongChecked(
+					(BigInteger)suppliedCapacitySeconds * allocation.Weight / totalWeight,
+					"Powered allocation exceeds the supported range."
+				);
+
+				work[machineIndex] = baseWork;
+				allocatedWork = checked(allocatedWork + baseWork);
+			}
+
+			var remainingWork = suppliedCapacitySeconds - allocatedWork;
+			while (remainingWork > 0)
+			{
+				PoweredRecipeAllocation best = null;
+				foreach (var allocation in allocations)
+				{
+					if (best == null || HasHigherNextAllocationPriority(allocation, best, work))
+					{
+						best = allocation;
+					}
+				}
+
+				if (best == null)
+				{
+					throw new InvalidOperationException("Powered work could not be apportioned across powered recipes.");
+				}
+
+				work[(int)best.Recipe.Machine] = checked(work[(int)best.Recipe.Machine] + 1);
+				remainingWork--;
+			}
+
+			return work;
+		}
+
+		private static bool HasHigherNextAllocationPriority(PoweredRecipeAllocation candidate, PoweredRecipeAllocation current, long[] work)
+		{
+			var candidateWork = work[(int)candidate.Recipe.Machine];
+			var currentWork = work[(int)current.Recipe.Machine];
+			var candidatePriority = (BigInteger)candidate.Weight * (currentWork + 1L);
+			var currentPriority = (BigInteger)current.Weight * (candidateWork + 1L);
+			var priorityComparison = candidatePriority.CompareTo(currentPriority);
+			if (priorityComparison != 0)
+			{
+				return priorityComparison > 0;
+			}
+
+			return candidate.Recipe.Machine.CompareTo(current.Recipe.Machine) < 0;
+		}
+
+		private bool HasSameAllocationWeights(long[] weights)
+		{
+			for (var index = 0; index < weights.Length; index++)
+			{
+				if (weights[index] != poweredAllocationWeights[index])
+				{
+					return false;
+				}
+			}
+
+			return true;
 		}
 
 		private void ApplyPowerPlan(ResourceLedger resources, PowerPlan plan)
@@ -283,10 +469,23 @@ namespace Asterforge.Game.Simulation.Production
 			}
 
 			Array.Copy(plan.Remainders, poweredRunRemainders, poweredRunRemainders.Length);
+			Array.Copy(plan.AllocationWeights, poweredAllocationWeights, poweredAllocationWeights.Length);
+			poweredAllocationPhase = plan.AllocationPhase;
 			fuelCreditUnits = plan.FuelCreditUnits;
 		}
 
 		private int GetRunRemainderLimit(MachineType machine)
+		{
+			var powerDemand = GetPowerDemand(machine);
+			if (powerDemand > 0)
+			{
+				return powerDemand;
+			}
+
+			return 1;
+		}
+
+		private int GetPowerDemand(MachineType machine)
 		{
 			foreach (var recipe in recipes)
 			{
@@ -296,7 +495,7 @@ namespace Asterforge.Game.Simulation.Production
 				}
 			}
 
-			return 1;
+			return 0;
 		}
 
 		private static BigInteger DivideRoundUp(BigInteger numerator, BigInteger denominator)
@@ -373,9 +572,47 @@ namespace Asterforge.Game.Simulation.Production
 			}
 		}
 
+		private sealed class PoweredRecipeAllocation
+		{
+			public ProductionRecipe Recipe { get; }
+
+			public long Weight { get; }
+
+			public BigInteger MaximumWork { get; }
+
+			public BigInteger Work { get; set; }
+
+			public PoweredRecipeAllocation(ProductionRecipe recipe, long weight, BigInteger maximumWork)
+			{
+				Recipe = recipe;
+				Weight = weight;
+				MaximumWork = maximumWork;
+			}
+		}
+
+		private sealed class PoweredAllocationPlan
+		{
+			public List<PoweredRecipeAllocation> Allocations { get; }
+
+			public long Phase { get; }
+
+			public long[] Weights { get; }
+
+			public PoweredAllocationPlan(List<PoweredRecipeAllocation> allocations, long phase, long[] weights)
+			{
+				Allocations = allocations;
+				Phase = phase;
+				Weights = weights;
+			}
+		}
+
 		private sealed class PowerPlan
 		{
 			public long[] Remainders { get; }
+
+			public long AllocationPhase { get; }
+
+			public long[] AllocationWeights { get; }
 
 			public long[] ResourceSpend { get; }
 
@@ -387,9 +624,11 @@ namespace Asterforge.Game.Simulation.Production
 
 			public long SuppliedCapacitySeconds { get; }
 
-			public PowerPlan(long[] remainders, long[] resourceSpend, long[] resourceOutput, long fuelConsumed, long fuelCreditUnits, long suppliedCapacitySeconds)
+			public PowerPlan(long[] remainders, long allocationPhase, long[] allocationWeights, long[] resourceSpend, long[] resourceOutput, long fuelConsumed, long fuelCreditUnits, long suppliedCapacitySeconds)
 			{
 				Remainders = remainders;
+				AllocationPhase = allocationPhase;
+				AllocationWeights = allocationWeights;
 				ResourceSpend = resourceSpend;
 				ResourceOutput = resourceOutput;
 				FuelConsumed = fuelConsumed;
