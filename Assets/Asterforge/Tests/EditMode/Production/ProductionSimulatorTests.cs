@@ -31,24 +31,37 @@ namespace Asterforge.Game.Tests.Production
 		}
 
 		[Test]
-		public void Advance_WithProductionChain_UsesUpstreamOutputInSameInterval()
+		public void Advance_WithIndependentOreAndMetalStreams_ProducesBothResources()
 		{
 			machines.Add(MachineType.Extractor, 2);
 			machines.Add(MachineType.Smelter);
 
 			simulator.Advance(resources, machines, 10);
 
-			Assert.That(resources.Get(ResourceType.Ore), Is.Zero);
+			Assert.That(resources.Get(ResourceType.Ore), Is.EqualTo(20));
 			Assert.That(resources.Get(ResourceType.Metal), Is.EqualTo(10));
 		}
 
 		[Test]
 		public void Advance_WhenInputIsInsufficient_ClampsProduction()
 		{
+			var inputLimitedSimulator = new ProductionSimulator(
+				new[]
+				{
+					new ProductionRecipe(
+						MachineType.Smelter,
+						new[]
+						{
+							new ResourceQuantity(ResourceType.Ore, 2)
+						},
+						new ResourceQuantity(ResourceType.Metal, 1)
+					)
+				}
+			);
 			resources.Add(ResourceType.Ore, 7);
 			machines.Add(MachineType.Smelter, 10);
 
-			simulator.Advance(resources, machines, 1);
+			inputLimitedSimulator.Advance(resources, machines, 1);
 
 			Assert.That(resources.Get(ResourceType.Ore), Is.EqualTo(1));
 			Assert.That(resources.Get(ResourceType.Metal), Is.EqualTo(3));
@@ -62,6 +75,18 @@ namespace Asterforge.Game.Tests.Production
 			simulator.Advance(resources, machines, 30);
 
 			Assert.That(resources.Get(ResourceType.Ore), Is.EqualTo(120));
+		}
+
+		[Test]
+		public void Advance_WithResearchStation_ProducesResearchWithoutMaterialInput()
+		{
+			resources.Add(ResourceType.Metal, 40);
+			machines.Add(MachineType.ResearchStation, 2);
+
+			simulator.Advance(resources, machines, 10);
+
+			Assert.That(resources.Get(ResourceType.Metal), Is.EqualTo(40));
+			Assert.That(resources.Get(ResourceType.Research), Is.EqualTo(20));
 		}
 
 		[Test]
@@ -188,6 +213,42 @@ namespace Asterforge.Game.Tests.Production
 			Assert.That(batchedResources.Get(ResourceType.Coal), Is.EqualTo(steppedResources.Get(ResourceType.Coal)));
 			Assert.That(batchedResources.Get(ResourceType.Steel), Is.EqualTo(steppedResources.Get(ResourceType.Steel)));
 			Assert.That(batchedStatus.FuelConsumed, Is.EqualTo(steppedFuelConsumed));
+			Assert.That(batchedResources.Get(ResourceType.Steel), Is.EqualTo(6));
+			Assert.That(batchedStatus.FuelConsumed, Is.EqualTo(7));
+		}
+
+		[Test]
+		public void Advance_WithGeneratedInputs_PreservesFuelAccountingAcrossBatchSizes()
+		{
+			var batchedResources = new ResourceLedger();
+			var batchedMachines = new MachineFleet();
+			var batchedSimulator = CreatePoweredSimulator(OutpostRecipes.All);
+			batchedMachines.Add(MachineType.Smelter, 2);
+			batchedMachines.Add(MachineType.CoalMine, 2);
+			batchedMachines.Add(MachineType.CoalGenerator);
+			batchedMachines.Add(MachineType.Steelworks, 3);
+
+			var batchedStatus = batchedSimulator.Advance(batchedResources, batchedMachines, 12);
+
+			var steppedResources = new ResourceLedger();
+			var steppedMachines = new MachineFleet();
+			var steppedSimulator = CreatePoweredSimulator(OutpostRecipes.All);
+			steppedMachines.Add(MachineType.Smelter, 2);
+			steppedMachines.Add(MachineType.CoalMine, 2);
+			steppedMachines.Add(MachineType.CoalGenerator);
+			steppedMachines.Add(MachineType.Steelworks, 3);
+			var steppedFuelConsumed = 0L;
+			for (var second = 0; second < 12; second++)
+			{
+				steppedFuelConsumed += steppedSimulator.Advance(steppedResources, steppedMachines, 1).FuelConsumed;
+			}
+
+			Assert.That(batchedResources.Get(ResourceType.Metal), Is.EqualTo(steppedResources.Get(ResourceType.Metal)));
+			Assert.That(batchedResources.Get(ResourceType.Coal), Is.EqualTo(steppedResources.Get(ResourceType.Coal)));
+			Assert.That(batchedResources.Get(ResourceType.Steel), Is.EqualTo(steppedResources.Get(ResourceType.Steel)));
+			Assert.That(batchedStatus.FuelConsumed, Is.EqualTo(steppedFuelConsumed));
+			Assert.That(batchedResources.Get(ResourceType.Metal), Is.Zero);
+			Assert.That(batchedResources.Get(ResourceType.Coal), Is.EqualTo(5));
 			Assert.That(batchedResources.Get(ResourceType.Steel), Is.EqualTo(6));
 			Assert.That(batchedStatus.FuelConsumed, Is.EqualTo(7));
 		}

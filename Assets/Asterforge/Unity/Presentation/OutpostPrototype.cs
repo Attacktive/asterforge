@@ -13,7 +13,6 @@ namespace Asterforge.Unity.Presentation
 		{
 			ResourceType.Ore,
 			ResourceType.Metal,
-			ResourceType.Components,
 			ResourceType.Research
 		};
 
@@ -27,13 +26,13 @@ namespace Asterforge.Unity.Presentation
 		{
 			MachineType.Extractor,
 			MachineType.Smelter,
-			MachineType.Assembler,
 			MachineType.ResearchStation
 		};
 
 		private static readonly MachineType[] industryMachines =
 		{
 			MachineType.CoalMine,
+			MachineType.CoalGenerator,
 			MachineType.Steelworks
 		};
 
@@ -213,10 +212,10 @@ namespace Asterforge.Unity.Presentation
 
 		private void DrawFactory(float width, float floor)
 		{
-			var machineSlots = 4;
+			var machineSlots = outpostMachines.Length;
 			if (world.IsIndustrialized)
 			{
-				machineSlots = 6;
+				machineSlots += industryMachines.Length;
 			}
 
 			var spacing = width / (machineSlots + 1f);
@@ -287,6 +286,11 @@ namespace Asterforge.Unity.Presentation
 			{
 				DrawRect(new Rect(centerX - 2f, body.y - 30f, 4f, 30f), trimColor);
 				DrawRect(new Rect(centerX - 18f, body.y - 25f, 36f, 3f), trimColor);
+			}
+			else if (machine == MachineType.CoalGenerator)
+			{
+				DrawRect(new Rect(body.x + 8f, body.y - 22f, 10f, 22f), bodyColor);
+				DrawRect(new Rect(body.x + body.width - 18f, body.y - 22f, 10f, 22f), bodyColor);
 			}
 			else if (machine == MachineType.Extractor)
 			{
@@ -403,6 +407,9 @@ namespace Asterforge.Unity.Presentation
 			if (world.IsIndustrialized)
 			{
 				GUILayout.Space(14f);
+				GUILayout.Label("POWER GRID", headingStyle);
+				DrawPowerGrid();
+				GUILayout.Space(10f);
 				GUILayout.Label("HEAVY INDUSTRY", headingStyle);
 				foreach (var machine in industryMachines)
 				{
@@ -428,6 +435,7 @@ namespace Asterforge.Unity.Presentation
 				var valueStyle = new GUIStyle(machineTitleStyle);
 				valueStyle.normal.textColor = GetResourceAccent(resource);
 				GUILayout.Label(FormatAmount(world.Resources.Get(resource)), valueStyle);
+				GUILayout.Label($"NET {FormatSignedRate(world.GetLastNetRate(resource))}/s", mutedStyle);
 				GUILayout.EndVertical();
 			}
 
@@ -503,7 +511,8 @@ namespace Asterforge.Unity.Presentation
 			GUILayout.Label("INDUSTRIALIZATION", machineTitleStyle);
 			if (world.IsIndustrialized)
 			{
-				GUILayout.Label("BREAKTHROUGH COMPLETE  //  COAL + STEEL ONLINE", bodyStyle);
+				GUILayout.Label("BREAKTHROUGH COMPLETE  //  COAL + POWER AVAILABLE", bodyStyle);
+				GUILayout.Label("Coal seams are now exploitable. Build fuel extraction and generation before bringing heavy industry online.", mutedStyle);
 				DrawProgressBar(1f, greenColor);
 				GUILayout.EndVertical();
 
@@ -515,7 +524,7 @@ namespace Asterforge.Unity.Presentation
 			var progress = Mathf.Clamp01(research / (float)required);
 			GUILayout.Label($"RESEARCH PROGRESS  //  {FormatAmount(research)} / {FormatAmount(required)}", bodyStyle);
 			DrawProgressBar(progress, cyanColor);
-			GUILayout.Label("Transform the outpost into a heavy-industry colony. Existing production can keep running while Research accumulates.", mutedStyle);
+			GUILayout.Label("Installed Research Stations generate Research directly. Reach Industrialization to reveal Coal extraction and power.", mutedStyle);
 
 			var previousEnabled = GUI.enabled;
 			GUI.enabled = CanAfford(world.IndustrializationCost);
@@ -531,10 +540,34 @@ namespace Asterforge.Unity.Presentation
 
 			if (GUILayout.Button("RESEARCH INDUSTRIALIZATION", style, GUILayout.Height(38f)) && world.TryIndustrialize())
 			{
-				status = "Industrialization breakthrough confirmed. Heavy industry is online.";
+				status = "Industrialization breakthrough confirmed. Coal seams detected; power infrastructure is now available.";
 			}
 
 			GUI.enabled = previousEnabled;
+			GUILayout.EndVertical();
+		}
+
+		private void DrawPowerGrid()
+		{
+			GUILayout.BeginVertical(machineCardStyle);
+			GUILayout.Label($"CAPACITY {world.PowerCapacity}  //  DEMAND {world.PowerDemand}", machineTitleStyle);
+
+			var message = "No powered demand yet. Coal is consumed only when the grid is serving powered industry.";
+			var messageColor = mutedColor;
+			if (world.PowerDemand > world.PowerCapacity)
+			{
+				message = "POWER LIMITED  //  Add Coal Generator capacity before expanding powered industry.";
+				messageColor = amberColor;
+			}
+			else if (world.PowerDemand > 0)
+			{
+				message = "GRID READY  //  Demand is within installed generation capacity.";
+				messageColor = greenColor;
+			}
+
+			var messageStyle = new GUIStyle(mutedStyle);
+			messageStyle.normal.textColor = messageColor;
+			GUILayout.Label(message, messageStyle);
 			GUILayout.EndVertical();
 		}
 
@@ -542,19 +575,41 @@ namespace Asterforge.Unity.Presentation
 		{
 			GUILayout.BeginVertical(machineCardStyle);
 			GUILayout.Label("VERTICAL-SLICE OBJECTIVE", eyebrowStyle);
-			var steelworks = world.Machines.Get(MachineType.Steelworks);
-			var progress = Mathf.Clamp01(steelworks);
-			GUILayout.Label("Sustain at least 1 Steel/s", machineTitleStyle);
+			var steelRate = world.GetLastNetRate(ResourceType.Steel);
+			var capability = world.GetSteelCapability();
+			var progress = Mathf.Clamp01((float)capability.SustainableRate);
+			GUILayout.Label(
+				$"Sustain 1 Steel/s  //  ACTUAL {FormatRate(steelRate)}/s  //  SUSTAINABLE {FormatRate(capability.SustainableRate)}/s",
+				machineTitleStyle
+			);
 			DrawProgressBar(progress, greenColor);
+			GUILayout.Label(GetSteelObjectiveMessage(capability), mutedStyle);
+			GUILayout.EndVertical();
+		}
 
-			var message = "Commission a Steelworks to establish steel production.";
-			if (steelworks > 0)
+		private static string GetSteelObjectiveMessage(SteelCapability capability)
+		{
+			if (capability.InstalledRate <= 0d)
 			{
-				message = "Steel capacity established. Keep Metal and Coal supplied to sustain output.";
+				return "Commission a powered Steelworks to begin the industrial capability test.";
 			}
 
-			GUILayout.Label(message, mutedStyle);
-			GUILayout.EndVertical();
+			if (capability.SustainableRate >= 1d)
+			{
+				return "Stable industrial capability confirmed. Installed supply can sustain the vertical-slice target without stockpile drawdown.";
+			}
+
+			if (capability.PowerSupportedRate <= capability.MetalSupportedRate && capability.PowerSupportedRate <= capability.CoalSupportedRate)
+			{
+				return "Power is the bottleneck. Add Coal Generator capacity.";
+			}
+
+			if (capability.MetalSupportedRate <= capability.CoalSupportedRate)
+			{
+				return "Metal is the bottleneck. Expand Smelters; their Ore-funded construction remains recoverable even at zero Metal.";
+			}
+
+			return "Coal is the bottleneck. Expand Coal Mine capacity to feed both generation and steelmaking.";
 		}
 
 		private void DrawProgressBar(float progress, Color fillColor)
@@ -616,15 +671,30 @@ namespace Asterforge.Unity.Presentation
 			return $"{amount / 1_000_000_000d:0.##}B";
 		}
 
+		private static string FormatRate(double rate)
+		{
+			return rate.ToString("0.##");
+		}
+
+		private static string FormatSignedRate(double rate)
+		{
+			if (rate > 0d)
+			{
+				return $"+{FormatRate(rate)}";
+			}
+
+			return FormatRate(rate);
+		}
+
 		private static string GetMachineName(MachineType machine)
 		{
 			var name = machine switch
 			{
 				MachineType.Extractor => "Extractor",
 				MachineType.Smelter => "Smelter",
-				MachineType.Assembler => "Assembler",
 				MachineType.ResearchStation => "Research Station",
 				MachineType.CoalMine => "Coal Mine",
+				MachineType.CoalGenerator => "Coal Generator",
 				MachineType.Steelworks => "Steelworks",
 				_ => machine.ToString()
 			};
@@ -638,9 +708,9 @@ namespace Asterforge.Unity.Presentation
 			{
 				MachineType.Extractor => "EXT",
 				MachineType.Smelter => "SMELT",
-				MachineType.Assembler => "ASM",
 				MachineType.ResearchStation => "R&D",
 				MachineType.CoalMine => "COAL",
+				MachineType.CoalGenerator => "PWR",
 				MachineType.Steelworks => "STEEL",
 				_ => "UNIT"
 			};
@@ -653,11 +723,11 @@ namespace Asterforge.Unity.Presentation
 			var flow = machine switch
 			{
 				MachineType.Extractor => "+1 Ore/s",
-				MachineType.Smelter => "2 Ore -> 1 Metal/s",
-				MachineType.Assembler => "3 Metal -> 1 Component/s",
-				MachineType.ResearchStation => "2 Components -> 1 Research/s",
+				MachineType.Smelter => "+1 Metal/s",
+				MachineType.ResearchStation => "+1 Research/s",
 				MachineType.CoalMine => "+1 Coal/s",
-				MachineType.Steelworks => "4 Metal + 2 Coal -> 1 Steel/s",
+				MachineType.CoalGenerator => "+4 power capacity; burns up to 1 Coal/s while loaded",
+				MachineType.Steelworks => "4 Metal + 2 Coal -> 1 Steel/s  //  4 power",
 				_ => string.Empty
 			};
 
@@ -670,9 +740,9 @@ namespace Asterforge.Unity.Presentation
 			{
 				MachineType.Extractor => new Color(0.88f, 0.56f, 0.24f),
 				MachineType.Smelter => new Color(0.95f, 0.35f, 0.13f),
-				MachineType.Assembler => new Color(0.83f, 0.68f, 0.27f),
 				MachineType.ResearchStation => cyanColor,
 				MachineType.CoalMine => new Color(0.56f, 0.59f, 0.60f),
+				MachineType.CoalGenerator => new Color(0.96f, 0.76f, 0.20f),
 				MachineType.Steelworks => new Color(0.73f, 0.82f, 0.88f),
 				_ => textColor
 			};
@@ -686,7 +756,6 @@ namespace Asterforge.Unity.Presentation
 			{
 				ResourceType.Ore => new Color(0.88f, 0.56f, 0.24f),
 				ResourceType.Metal => new Color(0.78f, 0.82f, 0.83f),
-				ResourceType.Components => new Color(0.86f, 0.70f, 0.27f),
 				ResourceType.Research => cyanColor,
 				ResourceType.Coal => new Color(0.56f, 0.59f, 0.60f),
 				ResourceType.Steel => new Color(0.78f, 0.86f, 0.90f),

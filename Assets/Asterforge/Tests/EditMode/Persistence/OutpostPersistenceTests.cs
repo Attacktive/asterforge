@@ -45,6 +45,27 @@ namespace Asterforge.Game.Tests.Persistence
 		}
 
 		[Test]
+		public void RestoreWithOfflineProgress_PreservesFractionalPoweredProductionState()
+		{
+			var world = new OutpostWorld();
+			world.Resources.Add(ResourceType.Metal, 40);
+			world.Resources.Add(ResourceType.Coal, 40);
+			world.Machines.Add(MachineType.Smelter);
+			world.Machines.Add(MachineType.CoalMine);
+			world.Machines.Add(MachineType.CoalGenerator);
+			world.Machines.Add(MachineType.Steelworks, 3);
+			world.Advance(1);
+			var snapshot = world.CaptureSnapshot(100);
+
+			world.Advance(1);
+			var restored = OutpostWorld.RestoreWithOfflineProgress(snapshot, 101).World;
+
+			Assert.That(restored.Resources.Get(ResourceType.Metal), Is.EqualTo(world.Resources.Get(ResourceType.Metal)));
+			Assert.That(restored.Resources.Get(ResourceType.Coal), Is.EqualTo(world.Resources.Get(ResourceType.Coal)));
+			Assert.That(restored.Resources.Get(ResourceType.Steel), Is.EqualTo(world.Resources.Get(ResourceType.Steel)));
+		}
+
+		[Test]
 		public void RestoreWithOfflineProgress_WithFutureSaveTimestamp_DoesNotReverseSimulation()
 		{
 			var world = new OutpostWorld();
@@ -58,24 +79,17 @@ namespace Asterforge.Game.Tests.Persistence
 		}
 
 		[Test]
-		public void Restore_WithVersionOneSnapshot_DefaultsCoalGeneratorsToZero()
+		public void Restore_WithLegacySnapshotVersion_Throws()
 		{
-			var machineCounts = new int[Enum.GetValues(typeof(MachineType)).Length - 1];
-			machineCounts[(int)MachineType.Extractor] = 2;
 			var snapshot = new OutpostSnapshot
 			{
-				Version = OutpostSnapshot.VersionWithoutPower,
+				Version = OutpostSnapshot.CurrentVersion - 1,
 				SavedAtUnixSeconds = 100,
 				ResourceAmounts = new long[Enum.GetValues(typeof(ResourceType)).Length],
-				MachineCounts = machineCounts,
-				IsIndustrialized = true
+				MachineCounts = new int[Enum.GetValues(typeof(MachineType)).Length]
 			};
 
-			var restored = OutpostWorld.Restore(snapshot);
-
-			Assert.That(restored.Machines.Get(MachineType.Extractor), Is.EqualTo(2));
-			Assert.That(restored.Machines.Get(MachineType.CoalGenerator), Is.Zero);
-			Assert.That(restored.IsIndustrialized, Is.True);
+			Assert.Throws<InvalidOperationException>(() => OutpostWorld.Restore(snapshot));
 		}
 
 		[Test]

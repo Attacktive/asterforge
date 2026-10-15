@@ -6,9 +6,41 @@ using Asterforge.Game.Simulation.Resources;
 
 namespace Asterforge.Game.Simulation.Progression
 {
+	public readonly struct SteelCapability
+	{
+		public double InstalledRate { get; }
+
+		public double PowerSupportedRate { get; }
+
+		public double MetalSupportedRate { get; }
+
+		public double CoalSupportedRate { get; }
+
+		public double SustainableRate => Math.Min(
+			Math.Min(InstalledRate, PowerSupportedRate),
+			Math.Min(MetalSupportedRate, CoalSupportedRate)
+		);
+
+		public SteelCapability(double installedRate, double powerSupportedRate, double metalSupportedRate, double coalSupportedRate)
+		{
+			InstalledRate = installedRate;
+			PowerSupportedRate = powerSupportedRate;
+			MetalSupportedRate = metalSupportedRate;
+			CoalSupportedRate = coalSupportedRate;
+		}
+	}
+
 	public sealed class OutpostWorld
 	{
-		private readonly ProductionSimulator productionSimulator = new ProductionSimulator(OutpostRecipes.All);
+		private static readonly PowerGrid powerGrid = new PowerGrid(
+			MachineType.CoalGenerator,
+			4,
+			new ResourceQuantity(ResourceType.Coal, 1)
+		);
+
+		private readonly ProductionSimulator productionSimulator = new ProductionSimulator(OutpostRecipes.All, powerGrid);
+		private readonly long[] lastResourceDeltas = new long[Enum.GetValues(typeof(ResourceType)).Length];
+		private long lastAdvanceSeconds;
 
 		public ResourceLedger Resources { get; } = new ResourceLedger();
 
@@ -17,6 +49,12 @@ namespace Asterforge.Game.Simulation.Progression
 		public bool IsIndustrialized { get; private set; }
 
 		public IReadOnlyList<ResourceCost> IndustrializationCost => OutpostRules.IndustrializationCost;
+
+		public PowerStatus LastPowerStatus { get; private set; }
+
+		public long PowerCapacity => powerGrid.GetCapacity(Machines);
+
+		public long PowerDemand => powerGrid.GetDemand(Machines, OutpostRecipes.All);
 
 		public void MineOre()
 		{
@@ -31,6 +69,61 @@ namespace Asterforge.Game.Simulation.Progression
 		public bool IsMachineUnlocked(MachineType machine)
 		{
 			return OutpostRules.IsMachineUnlocked(machine, Machines, IsIndustrialized);
+		}
+
+		public bool IsResourceUnlocked(ResourceType resource)
+		{
+			return OutpostRules.IsResourceUnlocked(resource, IsIndustrialized);
+		}
+
+		public double GetLastNetRate(ResourceType resource)
+		{
+			if (lastAdvanceSeconds <= 0)
+			{
+				return 0d;
+			}
+
+			return lastResourceDeltas[(int)resource] / (double)lastAdvanceSeconds;
+		}
+
+		public double GetNominalProductionRate(ResourceType resource)
+		{
+			var rate = 0d;
+			foreach (var recipe in OutpostRecipes.All)
+			{
+				if (recipe.PowerDemand != 0 || recipe.Inputs.Count != 0 || recipe.Output.Resource != resource)
+				{
+					continue;
+				}
+
+				rate += Machines.Get(recipe.Machine) * (double)recipe.Output.Amount;
+			}
+
+			return rate;
+		}
+
+		public SteelCapability GetSteelCapability()
+		{
+			var steelRecipe = GetRecipe(MachineType.Steelworks);
+			var outputPerRun = steelRecipe.Output.Amount;
+			var installedRate = Machines.Get(MachineType.Steelworks) * (double)outputPerRun;
+			var powerSupportedRate = PowerCapacity / (double)steelRecipe.PowerDemand * outputPerRun;
+			var metalPerRun = GetInputAmount(steelRecipe, ResourceType.Metal);
+			var coalPerRun = GetInputAmount(steelRecipe, ResourceType.Coal);
+			if (powerGrid.FuelPerGeneratorSecond.Resource == ResourceType.Coal)
+			{
+				coalPerRun += steelRecipe.PowerDemand * (double)powerGrid.FuelPerGeneratorSecond.Amount / powerGrid.CapacityPerGenerator;
+			}
+
+			var metalSupportedRate = GetNominalProductionRate(ResourceType.Metal) / metalPerRun * outputPerRun;
+			var coalSupportedRate = GetNominalProductionRate(ResourceType.Coal) / coalPerRun * outputPerRun;
+
+			return new SteelCapability(
+				installedRate,
+				powerSupportedRate,
+				metalSupportedRate,
+				coalSupportedRate
+			);
 		}
 
 		public bool TryBuyMachine(MachineType machine)
@@ -72,7 +165,19 @@ namespace Asterforge.Game.Simulation.Progression
 
 		public void Advance(long elapsedSeconds)
 		{
-			productionSimulator.Advance(Resources, Machines, elapsedSeconds);
+			var resourceTypes = (ResourceType[])Enum.GetValues(typeof(ResourceType));
+			var balancesBefore = new long[resourceTypes.Length];
+			foreach (var resource in resourceTypes)
+			{
+				balancesBefore[(int)resource] = Resources.Get(resource);
+			}
+
+			LastPowerStatus = productionSimulator.Advance(Resources, Machines, elapsedSeconds);
+			lastAdvanceSeconds = elapsedSeconds;
+			foreach (var resource in resourceTypes)
+			{
+				lastResourceDeltas[(int)resource] = Resources.Get(resource) - balancesBefore[(int)resource];
+			}
 		}
 
 		public OutpostSnapshot CaptureSnapshot(long savedAtUnixSeconds)
@@ -101,6 +206,8 @@ namespace Asterforge.Game.Simulation.Progression
 				SavedAtUnixSeconds = savedAtUnixSeconds,
 				ResourceAmounts = resourceAmounts,
 				MachineCounts = machineCounts,
+				PoweredRunRemainders = productionSimulator.CapturePoweredRunRemainders(),
+				PowerFuelCreditUnits = productionSimulator.CaptureFuelCreditUnits(),
 				IsIndustrialized = IsIndustrialized
 			};
 		}
@@ -117,11 +224,12 @@ namespace Asterforge.Game.Simulation.Progression
 			}
 
 			var machineTypes = (MachineType[])Enum.GetValues(typeof(MachineType));
-			for (var index = 0; index < snapshot.MachineCounts.Length; index++)
+			foreach (var machine in machineTypes)
 			{
-				world.Machines.Set(machineTypes[index], snapshot.MachineCounts[index]);
+				world.Machines.Set(machine, snapshot.MachineCounts[(int)machine]);
 			}
 
+			world.productionSimulator.RestorePoweredState(snapshot.PoweredRunRemainders, snapshot.PowerFuelCreditUnits);
 			world.IsIndustrialized = snapshot.IsIndustrialized;
 
 			return world;
@@ -152,7 +260,7 @@ namespace Asterforge.Game.Simulation.Progression
 				throw new ArgumentNullException(nameof(snapshot));
 			}
 
-			if (snapshot.Version != OutpostSnapshot.VersionWithoutPower && snapshot.Version != OutpostSnapshot.CurrentVersion)
+			if (snapshot.Version != OutpostSnapshot.CurrentVersion)
 			{
 				throw new InvalidOperationException($"Unsupported Outpost snapshot version {snapshot.Version}.");
 			}
@@ -169,10 +277,30 @@ namespace Asterforge.Game.Simulation.Progression
 			}
 
 			var machineCount = Enum.GetValues(typeof(MachineType)).Length;
-			var expectedMachineCount = snapshot.Version == OutpostSnapshot.VersionWithoutPower ? machineCount - 1 : machineCount;
-			if (snapshot.MachineCounts == null || snapshot.MachineCounts.Length != expectedMachineCount)
+			if (snapshot.MachineCounts == null || snapshot.MachineCounts.Length != machineCount)
 			{
 				throw new InvalidOperationException("Outpost snapshot machine data does not match this game version.");
+			}
+
+			if (snapshot.PoweredRunRemainders == null || snapshot.PoweredRunRemainders.Length != machineCount)
+			{
+				throw new InvalidOperationException("Outpost snapshot powered production data does not match this game version.");
+			}
+
+			var machineTypes = (MachineType[])Enum.GetValues(typeof(MachineType));
+			foreach (var machine in machineTypes)
+			{
+				var remainder = snapshot.PoweredRunRemainders[(int)machine];
+				var limit = GetPoweredRunRemainderLimit(machine);
+				if (remainder < 0 || remainder >= limit)
+				{
+					throw new InvalidOperationException("Outpost snapshot contains invalid powered production progress.");
+				}
+			}
+
+			if (snapshot.PowerFuelCreditUnits < 0 || snapshot.PowerFuelCreditUnits >= powerGrid.CapacityPerGenerator)
+			{
+				throw new InvalidOperationException("Outpost snapshot contains invalid generator fuel credit.");
 			}
 
 			foreach (var amount in snapshot.ResourceAmounts)
@@ -190,6 +318,45 @@ namespace Asterforge.Game.Simulation.Progression
 					throw new InvalidOperationException("Outpost snapshot contains a negative machine count.");
 				}
 			}
+		}
+
+		private static int GetPoweredRunRemainderLimit(MachineType machine)
+		{
+			foreach (var recipe in OutpostRecipes.All)
+			{
+				if (recipe.Machine == machine && recipe.PowerDemand > 0)
+				{
+					return recipe.PowerDemand;
+				}
+			}
+
+			return 1;
+		}
+
+		private static ProductionRecipe GetRecipe(MachineType machine)
+		{
+			foreach (var recipe in OutpostRecipes.All)
+			{
+				if (recipe.Machine == machine)
+				{
+					return recipe;
+				}
+			}
+
+			throw new InvalidOperationException($"No production recipe exists for {machine}.");
+		}
+
+		private static double GetInputAmount(ProductionRecipe recipe, ResourceType resource)
+		{
+			foreach (var input in recipe.Inputs)
+			{
+				if (input.Resource == resource)
+				{
+					return input.Amount;
+				}
+			}
+
+			return 0d;
 		}
 
 		private bool CanAfford(IReadOnlyList<ResourceCost> costs)

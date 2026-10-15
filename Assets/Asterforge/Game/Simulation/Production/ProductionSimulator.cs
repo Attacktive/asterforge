@@ -7,11 +7,10 @@ namespace Asterforge.Game.Simulation.Production
 {
 	public sealed class ProductionSimulator
 	{
-		private const long PowerRatioScale = 1_000_000_000L;
-
 		private readonly IReadOnlyList<ProductionRecipe> recipes;
 		private readonly PowerGrid powerGrid;
 		private readonly long[] poweredRunRemainders = new long[Enum.GetValues(typeof(MachineType)).Length];
+		private long fuelCreditUnits;
 
 		public ProductionSimulator(IReadOnlyList<ProductionRecipe> recipes)
 			: this(recipes, null)
@@ -22,6 +21,60 @@ namespace Asterforge.Game.Simulation.Production
 		{
 			this.recipes = recipes ?? throw new ArgumentNullException(nameof(recipes));
 			this.powerGrid = powerGrid;
+		}
+
+		public long[] CapturePoweredRunRemainders()
+		{
+			return (long[])poweredRunRemainders.Clone();
+		}
+
+		public long CaptureFuelCreditUnits()
+		{
+			return fuelCreditUnits;
+		}
+
+		public void RestorePoweredState(long[] runRemainders, long restoredFuelCreditUnits)
+		{
+			if (runRemainders == null)
+			{
+				throw new ArgumentNullException(nameof(runRemainders));
+			}
+
+			if (runRemainders.Length != poweredRunRemainders.Length)
+			{
+				throw new ArgumentException("Powered production remainder data does not match this game version.", nameof(runRemainders));
+			}
+
+			var machineTypes = (MachineType[])Enum.GetValues(typeof(MachineType));
+			foreach (var machine in machineTypes)
+			{
+				var remainder = runRemainders[(int)machine];
+				var limit = GetRunRemainderLimit(machine);
+				if (remainder < 0 || remainder >= limit)
+				{
+					throw new ArgumentOutOfRangeException(nameof(runRemainders), remainder, "Powered production remainder is outside its machine's work boundary.");
+				}
+			}
+
+			if (restoredFuelCreditUnits < 0)
+			{
+				throw new ArgumentOutOfRangeException(nameof(restoredFuelCreditUnits), restoredFuelCreditUnits, "Fuel credit cannot be negative.");
+			}
+
+			if (powerGrid == null)
+			{
+				if (restoredFuelCreditUnits != 0)
+				{
+					throw new ArgumentOutOfRangeException(nameof(restoredFuelCreditUnits), restoredFuelCreditUnits, "A simulator without power cannot restore fuel credit.");
+				}
+			}
+			else if (restoredFuelCreditUnits >= powerGrid.CapacityPerGenerator)
+			{
+				throw new ArgumentOutOfRangeException(nameof(restoredFuelCreditUnits), restoredFuelCreditUnits, "Fuel credit must be smaller than one generator-second of capacity.");
+			}
+
+			Array.Copy(runRemainders, poweredRunRemainders, poweredRunRemainders.Length);
+			fuelCreditUnits = restoredFuelCreditUnits;
 		}
 
 		public PowerStatus Advance(ResourceLedger resources, MachineFleet machines, long elapsedSeconds)
@@ -71,21 +124,25 @@ namespace Asterforge.Game.Simulation.Production
 				return new PowerStatus(capacity, demand, 0, demandedCapacitySeconds, 0);
 			}
 
-			var maximumRatioUnits = GetMaximumPowerRatioUnits(capacity, demand);
-			var plan = FindBestPowerPlan(resources, machines, elapsedSeconds, demand, demandedCapacitySeconds, maximumRatioUnits);
+			var maximumSuppliedCapacitySeconds = ToLongChecked(
+				BigInteger.Min(demandedCapacitySeconds, (BigInteger)capacity * elapsedSeconds),
+				"Supplied power for this simulation interval exceeds the supported range."
+			);
+			var plan = FindBestPowerPlan(resources, machines, elapsedSeconds, maximumSuppliedCapacitySeconds);
+
 			ApplyPowerPlan(resources, plan);
 
 			return new PowerStatus(capacity, demand, plan.SuppliedCapacitySeconds, demandedCapacitySeconds, plan.FuelConsumed);
 		}
 
-		private PowerPlan FindBestPowerPlan(ResourceLedger resources, MachineFleet machines, long elapsedSeconds, long demand, long demandedCapacitySeconds, long maximumRatioUnits)
+		private PowerPlan FindBestPowerPlan(ResourceLedger resources, MachineFleet machines, long elapsedSeconds, long maximumSuppliedCapacitySeconds)
 		{
 			var low = 0L;
-			var high = maximumRatioUnits;
+			var high = maximumSuppliedCapacitySeconds;
 			while (low < high)
 			{
 				var candidate = low + (high - low + 1L) / 2L;
-				if (BuildPowerPlan(resources, machines, elapsedSeconds, demand, demandedCapacitySeconds, candidate) != null)
+				if (BuildPowerPlan(resources, machines, elapsedSeconds, candidate) != null)
 				{
 					low = candidate;
 				}
@@ -95,7 +152,7 @@ namespace Asterforge.Game.Simulation.Production
 				}
 			}
 
-			var plan = BuildPowerPlan(resources, machines, elapsedSeconds, demand, demandedCapacitySeconds, low);
+			var plan = BuildPowerPlan(resources, machines, elapsedSeconds, low);
 			if (plan == null)
 			{
 				throw new InvalidOperationException("Unable to construct a feasible powered production plan.");
@@ -104,19 +161,13 @@ namespace Asterforge.Game.Simulation.Production
 			return plan;
 		}
 
-		private PowerPlan BuildPowerPlan(ResourceLedger resources, MachineFleet machines, long elapsedSeconds, long demand, long demandedCapacitySeconds, long ratioUnits)
+		private PowerPlan BuildPowerPlan(ResourceLedger resources, MachineFleet machines, long elapsedSeconds, long suppliedCapacitySeconds)
 		{
 			var resourceTypes = (ResourceType[])Enum.GetValues(typeof(ResourceType));
 			var spend = new BigInteger[resourceTypes.Length];
 			var output = new BigInteger[resourceTypes.Length];
-			var completedRuns = new long[poweredRunRemainders.Length];
 			var remainders = (long[])poweredRunRemainders.Clone();
-
-			var suppliedPowerUnits = (BigInteger)demandedCapacitySeconds * ratioUnits;
-			var generatorSecondUnits = (BigInteger)PowerRatioScale * powerGrid.CapacityPerGenerator;
-			var generatorSeconds = DivideRoundUp(suppliedPowerUnits, generatorSecondUnits);
-			var fuelConsumed = generatorSeconds * powerGrid.FuelPerGeneratorSecond.Amount;
-			spend[(int)powerGrid.FuelPerGeneratorSecond.Resource] += fuelConsumed;
+			var remainingWork = (BigInteger)suppliedCapacitySeconds;
 
 			foreach (var recipe in recipes)
 			{
@@ -126,25 +177,46 @@ namespace Asterforge.Game.Simulation.Production
 				}
 
 				var machineCount = machines.Get(recipe.Machine);
-				var desiredRuns = (BigInteger)machineCount * elapsedSeconds;
-				var totalRunUnits = desiredRuns * ratioUnits + poweredRunRemainders[(int)recipe.Machine];
-				var runs = totalRunUnits / PowerRatioScale;
+				var maximumRecipeWork = (BigInteger)machineCount * elapsedSeconds * recipe.PowerDemand;
+				var allocatedWork = BigInteger.Min(remainingWork, maximumRecipeWork);
+				var totalWork = allocatedWork + poweredRunRemainders[(int)recipe.Machine];
+				var runs = totalWork / recipe.PowerDemand;
 				if (runs > long.MaxValue)
 				{
 					return null;
 				}
 
-				var runCount = (long)runs;
-				completedRuns[(int)recipe.Machine] = runCount;
-				remainders[(int)recipe.Machine] = (long)(totalRunUnits % PowerRatioScale);
-
+				remainders[(int)recipe.Machine] = (long)(totalWork % recipe.PowerDemand);
 				foreach (var input in recipe.Inputs)
 				{
 					spend[(int)input.Resource] += runs * input.Amount;
 				}
 
 				output[(int)recipe.Output.Resource] += runs * recipe.Output.Amount;
+				remainingWork -= allocatedWork;
 			}
+
+			if (remainingWork != 0)
+			{
+				throw new InvalidOperationException("Powered work exceeds the demand available in this simulation interval.");
+			}
+
+			var generatorSeconds = BigInteger.Zero;
+			var fuelConsumed = BigInteger.Zero;
+			BigInteger nextFuelCreditUnits;
+			if (suppliedCapacitySeconds <= fuelCreditUnits)
+			{
+				nextFuelCreditUnits = fuelCreditUnits - suppliedCapacitySeconds;
+			}
+			else
+			{
+				var uncreditedWork = (BigInteger)suppliedCapacitySeconds - fuelCreditUnits;
+				generatorSeconds = DivideRoundUp(uncreditedWork, powerGrid.CapacityPerGenerator);
+				fuelConsumed = generatorSeconds * powerGrid.FuelPerGeneratorSecond.Amount;
+				nextFuelCreditUnits = fuelCreditUnits + generatorSeconds * powerGrid.CapacityPerGenerator - suppliedCapacitySeconds;
+			}
+
+			spend[(int)powerGrid.FuelPerGeneratorSecond.Resource] += fuelConsumed;
 
 			var resourceSpend = new long[resourceTypes.Length];
 			var resourceOutput = new long[resourceTypes.Length];
@@ -173,18 +245,13 @@ namespace Asterforge.Game.Simulation.Production
 				return null;
 			}
 
-			var suppliedCapacitySeconds = BigInteger.Min(
-				demandedCapacitySeconds,
-				generatorSeconds * powerGrid.CapacityPerGenerator
-			);
-
 			return new PowerPlan(
-				completedRuns,
 				remainders,
 				resourceSpend,
 				resourceOutput,
 				ToLongChecked(fuelConsumed, "Generator fuel consumption exceeds the supported range."),
-				ToLongChecked(suppliedCapacitySeconds, "Supplied power exceeds the supported range.")
+				ToLongChecked(nextFuelCreditUnits, "Generator fuel credit exceeds the supported range."),
+				suppliedCapacitySeconds
 			);
 		}
 
@@ -216,16 +283,20 @@ namespace Asterforge.Game.Simulation.Production
 			}
 
 			Array.Copy(plan.Remainders, poweredRunRemainders, poweredRunRemainders.Length);
+			fuelCreditUnits = plan.FuelCreditUnits;
 		}
 
-		private static long GetMaximumPowerRatioUnits(long capacity, long demand)
+		private int GetRunRemainderLimit(MachineType machine)
 		{
-			if (capacity >= demand)
+			foreach (var recipe in recipes)
 			{
-				return PowerRatioScale;
+				if (recipe.Machine == machine && recipe.PowerDemand > 0)
+				{
+					return recipe.PowerDemand;
+				}
 			}
 
-			return (long)((BigInteger)capacity * PowerRatioScale / demand);
+			return 1;
 		}
 
 		private static BigInteger DivideRoundUp(BigInteger numerator, BigInteger denominator)
@@ -304,8 +375,6 @@ namespace Asterforge.Game.Simulation.Production
 
 		private sealed class PowerPlan
 		{
-			public long[] CompletedRuns { get; }
-
 			public long[] Remainders { get; }
 
 			public long[] ResourceSpend { get; }
@@ -314,15 +383,17 @@ namespace Asterforge.Game.Simulation.Production
 
 			public long FuelConsumed { get; }
 
+			public long FuelCreditUnits { get; }
+
 			public long SuppliedCapacitySeconds { get; }
 
-			public PowerPlan(long[] completedRuns, long[] remainders, long[] resourceSpend, long[] resourceOutput, long fuelConsumed, long suppliedCapacitySeconds)
+			public PowerPlan(long[] remainders, long[] resourceSpend, long[] resourceOutput, long fuelConsumed, long fuelCreditUnits, long suppliedCapacitySeconds)
 			{
-				CompletedRuns = completedRuns;
 				Remainders = remainders;
 				ResourceSpend = resourceSpend;
 				ResourceOutput = resourceOutput;
 				FuelConsumed = fuelConsumed;
+				FuelCreditUnits = fuelCreditUnits;
 				SuppliedCapacitySeconds = suppliedCapacitySeconds;
 			}
 		}

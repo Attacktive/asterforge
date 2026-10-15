@@ -16,26 +16,12 @@ namespace Asterforge.Game.Simulation.Production
 				),
 				new ProductionRecipe(
 					MachineType.Smelter,
-					new[]
-					{
-						new ResourceQuantity(ResourceType.Ore, 2)
-					},
+					Array.Empty<ResourceQuantity>(),
 					new ResourceQuantity(ResourceType.Metal, 1)
 				),
 				new ProductionRecipe(
-					MachineType.Assembler,
-					new[]
-					{
-						new ResourceQuantity(ResourceType.Metal, 3)
-					},
-					new ResourceQuantity(ResourceType.Components, 1)
-				),
-				new ProductionRecipe(
 					MachineType.ResearchStation,
-					new[]
-					{
-						new ResourceQuantity(ResourceType.Components, 2)
-					},
+					Array.Empty<ResourceQuantity>(),
 					new ResourceQuantity(ResourceType.Research, 1)
 				),
 				new ProductionRecipe(
