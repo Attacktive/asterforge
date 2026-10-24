@@ -1,0 +1,9 @@
+{
+	"name": "Asterforge.Dashboard.Tests",
+	"rootNamespace": "Asterforge.Tests.Dashboard",
+	"references": ["Asterforge.Game"],
+	"includePlatforms": ["Editor"],
+	"optionalUnityReferences": ["TestAssemblies"],
+	"autoReferenced": false,
+	"noEngineReferences": false
+}

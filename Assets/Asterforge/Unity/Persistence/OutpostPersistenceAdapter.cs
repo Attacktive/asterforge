@@ -1,8 +1,6 @@
 using System;
 using System.IO;
-using System.Reflection;
 using Asterforge.Game.Persistence;
-using Asterforge.Game.Simulation.Progression;
 using Asterforge.Unity.Presentation;
 using UnityEngine;
 
@@ -13,9 +11,7 @@ namespace Asterforge.Unity.Persistence
 	{
 		private const float autosaveIntervalSeconds = 10f;
 		private const string saveFileName = "asterforge-outpost.json";
-
 		private OutpostPrototype prototype;
-		private FieldInfo worldField;
 		private float autosaveElapsedSeconds;
 		private string savePath;
 
@@ -38,16 +34,7 @@ namespace Asterforge.Unity.Persistence
 			prototype = FindAnyObjectByType<OutpostPrototype>();
 			if (prototype == null)
 			{
-				Debug.LogError("Asterforge persistence could not find the Outpost prototype.");
-				enabled = false;
-
-				return;
-			}
-
-			worldField = typeof(OutpostPrototype).GetField("world", BindingFlags.Instance | BindingFlags.NonPublic);
-			if (worldField == null)
-			{
-				Debug.LogError("Asterforge persistence could not access the prototype world. The temporary adapter needs updating.");
+				Debug.LogError("Asterforge persistence could not find the Outpost session.");
 				enabled = false;
 
 				return;
@@ -97,13 +84,10 @@ namespace Asterforge.Unity.Persistence
 					throw new InvalidDataException("The Outpost save file did not contain a snapshot.");
 				}
 
-				var nowUnixSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-				var result = OutpostWorld.RestoreWithOfflineProgress(snapshot, nowUnixSeconds);
-				worldField.SetValue(prototype, result.World);
-
-				if (result.OfflineSeconds > 0)
+				var offlineSeconds = prototype.Restore(snapshot, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+				if (offlineSeconds > 0)
 				{
-					Debug.Log($"Asterforge applied {result.OfflineSeconds:N0} seconds of offline progress.");
+					Debug.Log($"Asterforge applied {offlineSeconds:N0} seconds of offline progress.");
 				}
 			}
 			catch (Exception exception)
@@ -114,21 +98,14 @@ namespace Asterforge.Unity.Persistence
 
 		private void Save()
 		{
-			if (prototype == null || worldField == null || string.IsNullOrEmpty(savePath))
+			if (prototype == null || prototype.Session == null || string.IsNullOrEmpty(savePath))
 			{
 				return;
 			}
 
 			try
 			{
-				var world = worldField.GetValue(prototype) as OutpostWorld;
-				if (world == null)
-				{
-					return;
-				}
-
-				var nowUnixSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-				var snapshot = world.CaptureSnapshot(nowUnixSeconds);
+				var snapshot = prototype.Session.CaptureSnapshot(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
 				var json = JsonUtility.ToJson(snapshot, true);
 				File.WriteAllText(savePath, json);
 			}

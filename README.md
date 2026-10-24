@@ -6,25 +6,35 @@ The game is designed to be complete when played alone. Optional multiplayer will
 
 ## Platform targets
 
-The first-class desktop targets are:
-
-- Windows
-- macOS, built as a Universal application for Intel 64-bit and Apple silicon
+The first-class desktop targets are Windows and macOS, with macOS built as a Universal application for Intel 64-bit and Apple silicon.
 
 The project is pinned to Unity 6000.6.5f1 and uses URP.
 
-## Play the prototype
+## Play the Outpost
 
-The current Outpost prototype auto-bootstraps when entering Play Mode, so no scene setup is required yet.
+1. Open the project in Unity 6000.6.5f1 and press Play. No scene setup is required.
+2. Click, tap, or hold Mine Ore, then build an Extractor to automate extraction.
+3. Build Smelters and Research Stations. They produce Metal and Research directly without consuming intermediate resources.
+4. Research Industrialization for 100 Research, then build Coal Mines, Coal Generators, and Steelworks.
+5. Sustain 1 Steel/s to complete the solo vertical slice.
 
-1. Open the project in Unity 6000.6.5f1.
-2. Press the Play button in the editor toolbar.
-3. Switch to the Game view if Unity does not focus it automatically.
-4. Mine Ore, build production machines, research Industrialization, then work toward Steel.
+The production dashboard uses runtime UI Toolkit with a responsive card layout, safe-area insets, keyboard-focus styling, and touch-sized controls. It replaces the temporary IMGUI control deck and procedural vista; production scene art remains a separate milestone.
 
-Industrialization costs 100 Research. The production chain can keep running normally while Research accumulates, so no intermediate stockpile management is required.
+## Production dashboard
 
-The current presentation uses a temporary IMGUI shell so the real economy loop can be played before production UI and 2D art are built.
+Choose Buy 1, Buy 10, Buy 100, or Buy Max. Fixed batches are all-or-nothing; Max buys the largest affordable batch. The quoted total includes the existing price increase and per-unit rounding for every machine in the batch. Nothing is queued or purchased automatically.
+
+Each resource shows its balance and last measured net rate. Machine cards explain missing materials and unlock requirements; purchase time estimates appear only when every missing resource has a positive measured net rate. Estimates are not guarantees, especially when stockpiles are running down.
+
+Steel diagnostics distinguish last-interval output from sustainable output. Metal, Coal, and power limits are derived from the simulation, including Coal burned by generators. A stockpile can temporarily raise observed output without removing a sustainable-production bottleneck. The milestone panel shows the remaining limits and which machines address them.
+
+UI and persistence use `OutpostSession` queries and commands instead of accessing the live world's mutable ledgers or private fields. Existing save filenames, snapshot versions, offline advancement, and production rules remain unchanged.
+
+## Validation
+
+The `Asterforge.Dashboard.Tests` EditMode assembly covers exact batch pricing, odd-price rounding, all-or-nothing spending, Max boundaries, machine-count and resource overflow, locked machines, stale quotes, purchase estimates, steel bottlenecks, stockpile-assisted production, snapshot restoration, and stylesheet imports.
+
+Before releasing, run the Unity EditMode suite and check the dashboard in Play Mode at desktop, narrow-window, and phone-like landscape sizes. Verify that all controls remain reachable by scrolling, holding Mine Ore stops on release, buying a batch updates costs immediately, and restarting preserves an existing save. Runtime rendering and device behavior require Unity validation; source-level checks alone do not establish them.
 
 ## First milestone
 

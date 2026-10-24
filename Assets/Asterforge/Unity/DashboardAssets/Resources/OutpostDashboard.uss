@@ -1,0 +1,152 @@
+.dashboard {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	background-color: rgb(10, 17, 23);
+	color: rgb(224, 232, 235);
+	font-size: 15px;
+}
+.shell {
+	position: absolute;
+	padding: 20px;
+}
+.unity-label {
+	white-space: normal;
+	flex-shrink: 0;
+	margin: 0;
+	padding: 0;
+}
+.brand {
+	font-size: 23px;
+	-unity-font-style: bold;
+	color: rgb(241, 171, 80);
+	margin-bottom: 6px;
+}
+.status {
+	color: rgb(162, 183, 193);
+	margin-bottom: 16px;
+}
+.page-scroll {
+	flex-grow: 1;
+	min-height: 0;
+}
+.resource-strip, .workbench, .batch-selector, .machine-grid {
+	flex-direction: row;
+	flex-wrap: wrap;
+}
+.resource-tile {
+	flex-grow: 1;
+	flex-basis: 145px;
+	background-color: rgb(21, 34, 43);
+	border-top-width: 2px;
+	border-top-color: rgb(79, 181, 190);
+	padding: 14px;
+	margin-right: 10px;
+	margin-bottom: 16px;
+}
+.resource-value {
+	font-size: 21px;
+	margin-top: 8px;
+}
+.production {
+	flex-grow: 2;
+	flex-basis: 650px;
+	min-width: 0;
+	margin-right: 10px;
+}
+.sidebar {
+	flex-grow: 1;
+	flex-basis: 290px;
+	min-width: 0;
+}
+.heading, .machine-title {
+	font-size: 19px;
+	-unity-font-style: bold;
+	margin-bottom: 12px;
+}
+.eyebrow {
+	font-size: 12px;
+	color: rgb(118, 202, 208);
+	-unity-font-style: bold;
+	margin-bottom: 8px;
+}
+.machine-card, .side-card {
+	background-color: rgb(19, 29, 37);
+	border-width: 1px;
+	border-color: rgb(43, 61, 72);
+	border-radius: 8px;
+	padding: 16px;
+	margin-right: 10px;
+	margin-bottom: 12px;
+}
+.machine-card {
+	flex-basis: 270px;
+	flex-grow: 1;
+	min-width: 0;
+}
+.machine-card.constrained {
+	border-left-width: 3px;
+	border-left-color: rgb(231, 164, 73);
+}
+.flow {
+	margin-bottom: 12px;
+}
+.muted {
+	font-size: 13px;
+	color: rgb(152, 174, 186);
+	margin-bottom: 12px;
+}
+.hint {
+	font-size: 13px;
+	color: rgb(225, 185, 126);
+	flex-grow: 1;
+	margin-bottom: 12px;
+}
+.action {
+	min-height: 44px;
+	white-space: normal;
+	background-color: rgb(39, 64, 76);
+	color: rgb(236, 243, 245);
+	border-width: 1px;
+	border-color: rgb(71, 103, 118);
+	border-radius: 5px;
+	padding: 10px;
+	margin: 0 0 10px 0;
+}
+.action:hover, .action:focus {
+	background-color: rgb(50, 83, 97);
+	border-color: rgb(124, 218, 223);
+}
+.action:active, .action.selected {
+	background-color: rgb(61, 90, 95);
+	border-color: rgb(241, 171, 80);
+}
+.action:disabled {
+	background-color: rgb(27, 36, 43);
+	color: rgb(129, 145, 155);
+	border-color: rgb(49, 62, 72);
+}
+.batch-button {
+	flex-grow: 1;
+	flex-basis: 90px;
+	margin-right: 8px;
+}
+.unity-progress-bar {
+	margin-bottom: 16px;
+	min-height: 28px;
+}
+.unity-progress-bar__progress {
+	background-color: rgb(64, 144, 134);
+}
+.compact .workbench {
+	flex-direction: column;
+}
+.compact .production, .compact .sidebar {
+	flex-basis: auto;
+	margin-right: 0;
+}
+.compact .machine-card {
+	flex-basis: 100%;
+}

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Asterforge.Game.Simulation.Production;
 using Asterforge.Game.Simulation.Resources;
 
@@ -7,53 +8,34 @@ namespace Asterforge.Game.Simulation.Progression
 {
 	public static class OutpostRules
 	{
-		private static readonly ResourceCost[] extractorBaseCost =
-		{
-			new ResourceCost(ResourceType.Ore, 10)
-		};
-
-		private static readonly ResourceCost[] smelterBaseCost =
-		{
-			new ResourceCost(ResourceType.Ore, 25)
-		};
-
-		private static readonly ResourceCost[] researchStationBaseCost =
-		{
-			new ResourceCost(ResourceType.Metal, 20)
-		};
-
-		private static readonly ResourceCost[] coalMineBaseCost =
-		{
-			new ResourceCost(ResourceType.Metal, 60)
-		};
-
-		private static readonly ResourceCost[] coalGeneratorBaseCost =
-		{
-			new ResourceCost(ResourceType.Metal, 80)
-		};
-
-		private static readonly ResourceCost[] steelworksBaseCost =
-		{
-			new ResourceCost(ResourceType.Metal, 100)
-		};
-
-		private static readonly IReadOnlyList<ResourceCost> industrializationCost = Array.AsReadOnly(
-			new[]
-			{
-				new ResourceCost(ResourceType.Research, 100)
-			}
-		);
+		private static readonly ResourceCost[] extractorBaseCost = { new ResourceCost(ResourceType.Ore, 10) };
+		private static readonly ResourceCost[] smelterBaseCost = { new ResourceCost(ResourceType.Ore, 25) };
+		private static readonly ResourceCost[] researchStationBaseCost = { new ResourceCost(ResourceType.Metal, 20) };
+		private static readonly ResourceCost[] coalMineBaseCost = { new ResourceCost(ResourceType.Metal, 60) };
+		private static readonly ResourceCost[] coalGeneratorBaseCost = { new ResourceCost(ResourceType.Metal, 80) };
+		private static readonly ResourceCost[] steelworksBaseCost = { new ResourceCost(ResourceType.Metal, 100) };
+		private static readonly IReadOnlyList<ResourceCost> industrializationCost = Array.AsReadOnly(new[] { new ResourceCost(ResourceType.Research, 100) });
 
 		public static IReadOnlyList<ResourceCost> IndustrializationCost => industrializationCost;
 
 		public static IReadOnlyList<ResourceCost> GetMachineCost(MachineType machine, int ownedCount)
 		{
+			return GetMachineCost(machine, ownedCount, 1);
+		}
+
+		public static IReadOnlyList<ResourceCost> GetMachineCost(MachineType machine, int ownedCount, int quantity)
+		{
 			if (ownedCount < 0)
 			{
-				throw new ArgumentOutOfRangeException(nameof(ownedCount), ownedCount, "Owned machine count cannot be negative.");
+				throw new ArgumentOutOfRangeException(nameof(ownedCount));
 			}
 
-			var baseCost = machine switch
+			if (quantity <= 0)
+			{
+				throw new ArgumentOutOfRangeException(nameof(quantity));
+			}
+
+			var baseCosts = machine switch
 			{
 				MachineType.Extractor => extractorBaseCost,
 				MachineType.Smelter => smelterBaseCost,
@@ -61,10 +43,27 @@ namespace Asterforge.Game.Simulation.Progression
 				MachineType.CoalMine => coalMineBaseCost,
 				MachineType.CoalGenerator => coalGeneratorBaseCost,
 				MachineType.Steelworks => steelworksBaseCost,
-				_ => throw new ArgumentOutOfRangeException(nameof(machine), machine, "Machine type is not part of the redesigned economy.")
+				_ => throw new ArgumentOutOfRangeException(nameof(machine))
 			};
 
-			return ScaleCosts(baseCost, ownedCount);
+			var costs = new ResourceCost[baseCosts.Length];
+			var count = new BigInteger(quantity);
+			var indexSum = count * (ownedCount + 2L) + count * (count - 1) / 2;
+			for (var index = 0; index < baseCosts.Length; index++)
+			{
+				var cost = baseCosts[index];
+				var oddNumerators = BigInteger.Zero;
+				if (cost.Amount % 2 != 0)
+				{
+					oddNumerators = (count + ownedCount % 2) / 2;
+				}
+
+				// Sum each unit's rounded price, rather than rounding the batch total or multiplying the first price.
+				var total = (cost.Amount * indexSum + oddNumerators) / 2;
+				costs[index] = new ResourceCost(cost.Resource, checked((long)total));
+			}
+
+			return Array.AsReadOnly(costs);
 		}
 
 		public static bool IsMachineUnlocked(MachineType machine, MachineFleet machines, bool isIndustrialized)
@@ -97,20 +96,6 @@ namespace Asterforge.Game.Simulation.Progression
 				ResourceType.Steel => isIndustrialized,
 				_ => false
 			};
-		}
-
-		private static IReadOnlyList<ResourceCost> ScaleCosts(ResourceCost[] baseCosts, int ownedCount)
-		{
-			var scaledCosts = new ResourceCost[baseCosts.Length];
-			for (var index = 0; index < baseCosts.Length; index++)
-			{
-				var baseCost = baseCosts[index];
-				var numerator = checked(baseCost.Amount * (ownedCount + 2L));
-				var amount = checked((numerator + 1L) / 2L);
-				scaledCosts[index] = new ResourceCost(baseCost.Resource, amount);
-			}
-
-			return Array.AsReadOnly(scaledCosts);
 		}
 	}
 }
