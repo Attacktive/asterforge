@@ -48,8 +48,11 @@ namespace Asterforge.Unity.Presentation
 
 		private void OnEnable()
 		{
-			if (reloadSnapshot == null)
+			if (session != null || reloadSnapshot == null)
 			{
+				// A surviving session may have accepted commands while this component was disabled.
+				reloadSnapshot = null;
+
 				return;
 			}
 

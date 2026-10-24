@@ -49,12 +49,22 @@ namespace Asterforge.Unity.Presentation
 		{
 			if (document != null)
 			{
-				document.rootVisualElement.Clear();
+				var root = document.rootVisualElement;
+				if (root != null)
+				{
+					root.Clear();
+				}
+
 				document.panelSettings = null;
 			}
 
-			Destroy(panelSettings);
+			if (panelSettings != null)
+			{
+				Destroy(panelSettings);
+				}
+
 			panelSettings = null;
+			shell = null;
 			machines.Clear();
 			resources.Clear();
 			batchButtons.Clear();

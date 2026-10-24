@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Asterforge.Game.Simulation.Production;
 using Asterforge.Game.Simulation.Progression;
 using UnityEngine;
@@ -19,8 +18,7 @@ namespace Asterforge.Unity.Presentation
 
 		private readonly Dictionary<string, Texture2D> portraits = new Dictionary<string, Texture2D>();
 		private readonly List<FacilityManagerDefinition> visibleManagers = new List<FacilityManagerDefinition>();
-		private OutpostPrototype prototype;
-		private FieldInfo worldField;
+		private OutpostSession session;
 		private GUIStyle headingStyle;
 		private GUIStyle nameStyle;
 		private GUIStyle roleStyle;
@@ -53,24 +51,26 @@ namespace Asterforge.Unity.Presentation
 
 		private void Start()
 		{
-			prototype = FindAnyObjectByType<OutpostPrototype>();
-			worldField = typeof(OutpostPrototype).GetField("world", BindingFlags.Instance | BindingFlags.NonPublic);
-			if (prototype == null || worldField == null)
+			var prototype = FindAnyObjectByType<OutpostPrototype>();
+			if (prototype == null)
 			{
 				Debug.LogWarning("Asterforge facility managers could not connect to the temporary Outpost prototype.");
 				enabled = false;
+
+				return;
 			}
+
+			session = prototype.Session;
 		}
 
 		private void OnGUI()
 		{
-			var world = GetWorld();
-			if (world == null)
+			if (session == null)
 			{
 				return;
 			}
 
-			BuildVisibleManagers(world);
+			BuildVisibleManagers(session);
 			if (visibleManagers.Count == 0)
 			{
 				return;
@@ -83,26 +83,16 @@ namespace Asterforge.Unity.Presentation
 			var rect = GetCrewRect();
 			GUI.Box(rect, GUIContent.none, panelStyle);
 			GUI.Label(new Rect(rect.x + 12f, rect.y + 8f, rect.width - 24f, 18f), "FACILITY MANAGERS // SHIFT LEADS", headingStyle);
-			DrawRoster(rect, world);
+			DrawRoster(rect, session);
 			GUI.depth = previousDepth;
 		}
 
-		private OutpostWorld GetWorld()
-		{
-			if (prototype == null || worldField == null)
-			{
-				return null;
-			}
-
-			return worldField.GetValue(prototype) as OutpostWorld;
-		}
-
-		private void BuildVisibleManagers(OutpostWorld world)
+		private void BuildVisibleManagers(OutpostSession session)
 		{
 			visibleManagers.Clear();
 			foreach (var manager in FacilityManagers.All)
 			{
-				if (world.IsMachineUnlocked(manager.Machine))
+				if (session.IsMachineUnlocked(manager.Machine))
 				{
 					visibleManagers.Add(manager);
 				}
@@ -125,7 +115,7 @@ namespace Asterforge.Unity.Presentation
 			return new Rect(18f, 96f, compactWidth, 150f);
 		}
 
-		private void DrawRoster(Rect rect, OutpostWorld world)
+		private void DrawRoster(Rect rect, OutpostSession session)
 		{
 			var contentRect = new Rect(rect.x + 10f, rect.y + 30f, rect.width - 20f, rect.height - 40f);
 			var columns = Mathf.Min(3, visibleManagers.Count);
@@ -146,11 +136,11 @@ namespace Asterforge.Unity.Presentation
 					cardHeight
 				);
 
-				DrawManagerCard(cardRect, manager, world);
+				DrawManagerCard(cardRect, manager, session);
 			}
 		}
 
-		private void DrawManagerCard(Rect rect, FacilityManagerDefinition manager, OutpostWorld world)
+		private void DrawManagerCard(Rect rect, FacilityManagerDefinition manager, OutpostSession session)
 		{
 			GUI.DrawTexture(rect, cardTexture);
 
@@ -182,7 +172,7 @@ namespace Asterforge.Unity.Presentation
 			GUI.Label(new Rect(textX, rect.y + 7f, textWidth, 17f), manager.Name.ToUpperInvariant(), nameStyle);
 			GUI.Label(new Rect(textX, rect.y + 24f, textWidth, 15f), manager.Role.ToUpperInvariant(), roleStyle);
 
-			var owned = world.Machines.Get(manager.Machine);
+			var owned = session.GetMachineCount(manager.Machine);
 			var state = "STANDBY";
 			var stateColor = mutedColor;
 			if (owned > 0)
