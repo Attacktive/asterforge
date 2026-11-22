@@ -13,7 +13,8 @@ permissions:
 
 jobs:
   approve:
-    if: github.event_name == 'pull_request_target' && github.event.pull_request.user.login == 'dependabot[bot]'
+    # 49699333 is the GitHub.com account ID for dependabot[bot].
+    if: github.event_name == 'pull_request_target' && github.event.sender.id == 49699333 && github.event.pull_request.user.id == 49699333 && github.event.pull_request.head.repo.id == github.event.repository.id
     runs-on: 'ubuntu-latest'
     steps:
       - name: 'Fetch Dependabot metadata'
@@ -37,13 +38,14 @@ jobs:
             exit 0
           fi
 
-          AUTHOR="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.user.login')"
-          if [ "$AUTHOR" != 'dependabot[bot]' ]; then
+          PR_DETAILS="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          if ! jq -e --argjson repository_id "$REPOSITORY_ID" '.user.id == 49699333 and .head.repo.id == $repository_id and .base.repo.id == $repository_id' <<< "$PR_DETAILS" > /dev/null; then
             exit 0
           fi
 
           gh pr merge "$PR_NUMBER" --rebase --match-head-commit "$TESTED_HEAD_SHA" --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY_ID: ${{ github.repository_id }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
           TESTED_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
