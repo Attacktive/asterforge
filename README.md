@@ -6,7 +6,11 @@ The game is designed to be complete when played alone. Optional multiplayer will
 
 ## Platform targets
 
-The first-class desktop targets are Windows and macOS, with macOS built as a Universal application for Intel 64-bit and Apple silicon.
+The first-class targets are:
+
+- Windows
+- macOS, built as a Universal application for Intel 64-bit and Apple silicon
+- Android, built for ARM64 phones and tablets in landscape orientation
 
 The project is pinned to Unity 6000.6.5f1 and uses URP.
 
@@ -35,6 +39,14 @@ UI and persistence use `OutpostSession` queries and commands instead of accessin
 The `Asterforge.Dashboard.Tests` EditMode assembly covers exact batch pricing, odd-price rounding, all-or-nothing spending, Max boundaries, machine-count and resource overflow, locked machines, stale quotes, purchase estimates, steel bottlenecks, stockpile-assisted production, snapshot restoration, and stylesheet imports.
 
 Before releasing, run the Unity EditMode suite and check the dashboard in Play Mode at desktop, narrow-window, and phone-like landscape sizes. Verify that all controls remain reachable by scrolling, holding Mine Ore stops on release, buying a batch updates costs immediately, and restarting preserves an existing save. Runtime rendering and device behavior require Unity validation; source-level checks alone do not establish them.
+
+## Build the Android prototype
+
+Install Android Build Support, the Android SDK and NDK, and OpenJDK for Unity 6000.6.5f1, then choose **Asterforge > Build > Android Development APK** in the Unity editor. The development APK is written to `build/Android/asterforge.apk`.
+
+The Android build targets ARM64 with IL2CPP, Android 8.0/API 26 or newer, and Android 16/API 36. Vulkan is preferred with OpenGL ES 3 as a fallback. The prototype is locked to landscape autorotation and stays inside Android's safe area.
+
+Android currently retains the prototype rendering cap of 1080 pixels on the logical long side and targets 60 FPS. The dashboard now uses responsive UI Toolkit rather than the former pixel-authored IMGUI shell; validate the retained cap and touch behavior on Android devices before release. Warm pause/resume progress is restored through the same `OutpostSession` used by the dashboard.
 
 ## First milestone
 

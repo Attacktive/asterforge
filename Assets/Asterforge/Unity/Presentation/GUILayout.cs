@@ -87,7 +87,8 @@ namespace Asterforge.Unity.Presentation
 				return false;
 			}
 
-			if (activeButtonId == controlId && Event.current.rawType == EventType.MouseUp)
+			var eventType = Event.current.rawType;
+			if (activeButtonId == controlId && (eventType == EventType.MouseUp || eventType == EventType.TouchUp))
 			{
 				ResetActiveButton();
 
